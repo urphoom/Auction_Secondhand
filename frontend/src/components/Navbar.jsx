@@ -78,7 +78,7 @@ export default function Navbar() {
             <span className="nav-icon">🔍</span>
             <span className="nav-text">Auctions</span>
           </Link>
-          {user && (
+          {user && user.role !== 'admin' && (
             <>
               <Link to="/add" className="nav-link">
                 <span className="nav-icon">➕</span>
@@ -103,6 +103,13 @@ export default function Navbar() {
               
               {/* Payments (hidden for admin only) */}
               {user.role !== 'admin' && (
+                <Link to="/top-up" className="nav-link">
+                  <span className="nav-icon">💸</span>
+                  <span className="nav-text">Top Up</span>
+                </Link>
+              )}
+
+              {user.role !== 'admin' && (
                 <Link to="/payments" className="nav-link">
                   <span className="nav-icon">💳</span>
                   <span className="nav-text">Payments</span>
@@ -117,7 +124,7 @@ export default function Navbar() {
               
               {/* Admin Panel */}
               {user.role === 'admin' && (
-                <Link to="/admin" className="nav-link">
+                <Link to="/admin/dashboard" className="nav-link">
                   <span className="nav-icon">⚙️</span>
                   <span className="nav-text">Admin</span>
                 </Link>

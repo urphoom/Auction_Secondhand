@@ -54,11 +54,11 @@ async function main() {
   // Chat rooms
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chat_rooms (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       description TEXT,
-      created_by INT NOT NULL,
-      auction_id INT NULL,
+      created_by INT UNSIGNED NOT NULL,
+      auction_id INT UNSIGNED NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (auction_id) REFERENCES auctions(id) ON DELETE CASCADE,
@@ -67,7 +67,27 @@ async function main() {
     ) ENGINE=InnoDB;
   `);
   // Add auction_id column to existing chat_rooms table if it doesn't exist
-  await pool.query("ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS auction_id INT NULL");
+  await pool.query("ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS auction_id INT UNSIGNED NULL");
+  // Ensure created_by and auction_id use unsigned to match referenced columns
+  try {
+    await pool.query('ALTER TABLE chat_rooms MODIFY COLUMN id INT UNSIGNED AUTO_INCREMENT');
+  } catch (error) {
+    // ignore
+  }
+  try {
+    await pool.query('ALTER TABLE chat_rooms MODIFY COLUMN created_by INT UNSIGNED NOT NULL');
+  } catch (error) {
+    if (!error.message.includes('needs to be valid') && !error.message.includes('errno: 1265')) {
+      // ignore if incompatible data etc.
+    }
+  }
+  try {
+    await pool.query('ALTER TABLE chat_rooms MODIFY COLUMN auction_id INT UNSIGNED NULL');
+  } catch (error) {
+    if (!error.message.includes('needs to be valid') && !error.message.includes('errno: 1265')) {
+      // ignore
+    }
+  }
   // Add foreign key constraint if it doesn't exist
   try {
     await pool.query(`
@@ -85,9 +105,9 @@ async function main() {
   // Chat messages
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chat_messages (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      room_id INT NOT NULL,
-      user_id INT NOT NULL,
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      room_id INT UNSIGNED NOT NULL,
+      user_id INT UNSIGNED NOT NULL,
       message TEXT,
       image_url VARCHAR(500),
       message_type ENUM('text', 'image') NOT NULL DEFAULT 'text',
@@ -96,6 +116,52 @@ async function main() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX (room_id, created_at),
       INDEX (user_id)
+    ) ENGINE=InnoDB;
+  `);
+  try {
+    await pool.query('ALTER TABLE chat_messages MODIFY COLUMN id INT UNSIGNED AUTO_INCREMENT');
+  } catch (error) {
+    // ignore
+  }
+  try {
+    await pool.query('ALTER TABLE chat_messages MODIFY COLUMN room_id INT UNSIGNED NOT NULL');
+    await pool.query('ALTER TABLE chat_messages MODIFY COLUMN user_id INT UNSIGNED NOT NULL');
+  } catch (error) {
+    if (!error.message.includes('needs to be valid') && !error.message.includes('errno: 1265')) {
+      // ignore
+    }
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS top_up_requests (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id INT UNSIGNED NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      slip_url VARCHAR(255),
+      status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+      note TEXT,
+      processed_by INT UNSIGNED NULL,
+      processed_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX (status),
+      INDEX (created_at)
+    ) ENGINE=InnoDB;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      admin_id INT UNSIGNED NOT NULL,
+      action VARCHAR(100) NOT NULL,
+      target_type VARCHAR(100),
+      target_id INT UNSIGNED,
+      details TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX (admin_id),
+      INDEX (created_at)
     ) ENGINE=InnoDB;
   `);
 
