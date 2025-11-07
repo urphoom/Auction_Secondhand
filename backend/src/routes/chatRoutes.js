@@ -42,9 +42,86 @@ async function hasColumn(pool, tableName, columnName) {
   return rows.length > 0;
 }
 
+async function userHasWinnerChatAccess(pool, room, userId) {
+  if (!room || !room.name || !room.name.includes('Winner Chat')) {
+    return false;
+  }
+
+  let auctionId = room.auction_id;
+  let auction = null;
+
+  if (auctionId) {
+    const [auctionRows] = await pool.query(`
+      SELECT id, title, user_id
+      FROM auctions
+      WHERE id = ?
+    `, [auctionId]);
+    if (auctionRows.length > 0) {
+      auction = auctionRows[0];
+    }
+  }
+
+  if (!auction) {
+    const match = room.name.match(/^🏆\s(.+?)\s-\sWinner Chat$/);
+    if (!match) return false;
+    const auctionTitle = match[1];
+    const [auctionRows] = await pool.query(`
+      SELECT id, title, user_id
+      FROM auctions
+      WHERE title = ? AND user_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `, [auctionTitle, room.created_by]);
+    if (!auctionRows.length) return false;
+    auction = auctionRows[0];
+    auctionId = auction.id;
+
+    if (!room.auction_id) {
+      try {
+        await pool.query(`
+          UPDATE chat_rooms
+          SET auction_id = ?
+          WHERE id = ?
+        `, [auctionId, room.id]);
+      } catch (updateError) {
+        console.warn(`⚠️ Could not backfill auction_id for chat room ${room.id}:`, updateError.message);
+      }
+    }
+  }
+
+  if (!auction) return false;
+
+  if (room.created_by === userId) {
+    return true;
+  }
+
+  const [paymentCheck] = await pool.query(`
+    SELECT winner_id FROM payment_transactions
+    WHERE auction_id = ? AND winner_id = ?
+  `, [auctionId, userId]);
+
+  if (paymentCheck.length > 0) {
+    return true;
+  }
+
+  const [bidCheck] = await pool.query(`
+    SELECT b.user_id
+    FROM bids b
+    WHERE b.auction_id = ? AND b.user_id = ?
+      AND b.amount = (
+        SELECT MAX(amount)
+        FROM bids
+        WHERE auction_id = ?
+      )
+  `, [auctionId, userId, auctionId]);
+
+  return bidCheck.length > 0;
+}
+
 // Get chat rooms (private: only user's own rooms + admin can see all + winner chat rooms)
 router.get('/rooms', authRequired, async (req, res) => {
   const pool = await getPool();
+  const io = req.app.get('io');
   
   try {
     let query, params;
@@ -388,7 +465,7 @@ router.get('/rooms/:id/messages', authRequired, async (req, res) => {
   
   try {
     // First check if user has access to this room
-    const [roomCheck] = await pool.query('SELECT created_by, name FROM chat_rooms WHERE id = ?', [req.params.id]);
+    const [roomCheck] = await pool.query('SELECT id, created_by, name, auction_id FROM chat_rooms WHERE id = ?', [req.params.id]);
     if (!roomCheck.length) return res.status(404).json({ message: 'Room not found' });
     
     const room = roomCheck[0];
@@ -404,38 +481,7 @@ router.get('/rooms/:id/messages', authRequired, async (req, res) => {
     }
     // Check if user is winner of auction (for winner chat rooms)
     else if (room.name.includes('Winner Chat')) {
-      // Extract auction title from room name
-      const auctionTitle = room.name.replace('🏆 ', '').replace(' - Winner Chat', '');
-      
-      // Find auction with this title
-      const [auctions] = await pool.query(`
-        SELECT id FROM auctions WHERE title = ?
-      `, [auctionTitle]);
-      
-      if (auctions.length > 0) {
-        const auctionId = auctions[0].id;
-        
-        // Method 1: Check from payment_transactions (works for buy-now and regular auctions)
-        const [paymentCheck] = await pool.query(`
-          SELECT winner_id FROM payment_transactions 
-          WHERE auction_id = ? AND winner_id = ?
-        `, [auctionId, req.user.id]);
-        
-        // Method 2: Check from bids (for regular auctions)
-        const [bidCheck] = await pool.query(`
-          SELECT b.user_id
-          FROM bids b
-          WHERE b.auction_id = ? AND b.user_id = ?
-          AND b.amount = (
-            SELECT MAX(amount) FROM bids WHERE auction_id = ?
-          )
-        `, [auctionId, req.user.id, auctionId]);
-        
-        // User has access if they have payment transaction OR they have highest bid
-        if (paymentCheck.length > 0 || bidCheck.length > 0) {
-          hasAccess = true;
-        }
-      }
+      hasAccess = await userHasWinnerChatAccess(pool, room, req.user.id);
     }
     
     if (!hasAccess) {
@@ -468,7 +514,7 @@ router.post('/rooms/:id/messages', authRequired, async (req, res) => {
   
   try {
     // Check room access
-    const [roomCheck] = await pool.query('SELECT created_by, name FROM chat_rooms WHERE id = ?', [req.params.id]);
+    const [roomCheck] = await pool.query('SELECT id, created_by, name, auction_id FROM chat_rooms WHERE id = ?', [req.params.id]);
     if (!roomCheck.length) return res.status(404).json({ message: 'Room not found' });
     
     const room = roomCheck[0];
@@ -484,38 +530,7 @@ router.post('/rooms/:id/messages', authRequired, async (req, res) => {
     }
     // Check if user is winner of auction (for winner chat rooms)
     else if (room.name.includes('Winner Chat')) {
-      // Extract auction title from room name
-      const auctionTitle = room.name.replace('🏆 ', '').replace(' - Winner Chat', '');
-      
-      // Find auction with this title
-      const [auctions] = await pool.query(`
-        SELECT id FROM auctions WHERE title = ?
-      `, [auctionTitle]);
-      
-      if (auctions.length > 0) {
-        const auctionId = auctions[0].id;
-        
-        // Method 1: Check from payment_transactions (works for buy-now and regular auctions)
-        const [paymentCheck] = await pool.query(`
-          SELECT winner_id FROM payment_transactions 
-          WHERE auction_id = ? AND winner_id = ?
-        `, [auctionId, req.user.id]);
-        
-        // Method 2: Check from bids (for regular auctions)
-        const [bidCheck] = await pool.query(`
-          SELECT b.user_id
-          FROM bids b
-          WHERE b.auction_id = ? AND b.user_id = ?
-          AND b.amount = (
-            SELECT MAX(amount) FROM bids WHERE auction_id = ?
-          )
-        `, [auctionId, req.user.id, auctionId]);
-        
-        // User has access if they have payment transaction OR they have highest bid
-        if (paymentCheck.length > 0 || bidCheck.length > 0) {
-          hasAccess = true;
-        }
-      }
+      hasAccess = await userHasWinnerChatAccess(pool, room, req.user.id);
     }
     
     if (!hasAccess) {
@@ -550,33 +565,55 @@ router.post('/rooms/:id/messages', authRequired, async (req, res) => {
 
 // Send an image message (with access control)
 router.post('/rooms/:id/messages/image', authRequired, upload.single('image'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: 'Image file is required' });
-  
-  const pool = await getPool();
-  
-  // Check room access
-  const [roomCheck] = await pool.query('SELECT created_by FROM chat_rooms WHERE id = ?', [req.params.id]);
-  if (!roomCheck.length) return res.status(404).json({ message: 'Room not found' });
-  
-  const room = roomCheck[0];
-  if (req.user.role !== 'admin' && room.created_by !== req.user.id) {
-    return res.status(403).json({ message: 'Access denied' });
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Image file is required' });
+    
+    const pool = await getPool();
+    
+    // Check room access
+    const [roomCheck] = await pool.query('SELECT id, created_by, name, auction_id FROM chat_rooms WHERE id = ?', [req.params.id]);
+    if (!roomCheck.length) return res.status(404).json({ message: 'Room not found' });
+    
+    const room = roomCheck[0];
+    let hasAccess = false;
+
+    if (req.user.role === 'admin') {
+      hasAccess = true;
+    } else if (room.created_by === req.user.id) {
+      hasAccess = true;
+    } else if (room.name && room.name.includes('Winner Chat')) {
+      hasAccess = await userHasWinnerChatAccess(pool, room, req.user.id);
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const imageUrl = `/uploads/chat/${req.file.filename}`;
+    const [result] = await pool.query(
+      'INSERT INTO chat_messages (room_id, user_id, image_url, message_type) VALUES (?, ?, ?, ?)',
+      [req.params.id, req.user.id, imageUrl, 'image']
+    );
+    
+    const [rows] = await pool.query(`
+      SELECT cm.*, u.username, u.role
+      FROM chat_messages cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.id = ?
+    `, [result.insertId]);
+    
+    const messageData = rows[0];
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`chat:${req.params.id}`).emit('newMessage', messageData);
+    }
+
+    res.json(messageData);
+  } catch (error) {
+    console.error('Error sending image message:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
-  
-  const imageUrl = `/uploads/chat/${req.file.filename}`;
-  const [result] = await pool.query(
-    'INSERT INTO chat_messages (room_id, user_id, image_url, message_type) VALUES (?, ?, ?, ?)',
-    [req.params.id, req.user.id, imageUrl, 'image']
-  );
-  
-  const [rows] = await pool.query(`
-    SELECT cm.*, u.username, u.role
-    FROM chat_messages cm
-    JOIN users u ON cm.user_id = u.id
-    WHERE cm.id = ?
-  `, [result.insertId]);
-  
-  res.json(rows[0]);
 });
 
 // Delete a message (admin or message owner)

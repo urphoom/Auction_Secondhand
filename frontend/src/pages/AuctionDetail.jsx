@@ -96,9 +96,10 @@ export default function AuctionDetail() {
   };
 
   useEffect(() => {
-    socket.emit('joinAuction', Number(id));
-    socket.on('bidUpdated', ({ auctionId, amount, ended }) => {
-      if (Number(auctionId) === Number(id)) {
+    const auctionId = Number(id);
+
+    const handleBidUpdated = ({ auctionId: updatedAuctionId, amount, ended }) => {
+      if (Number(updatedAuctionId) === auctionId) {
         setAuction((prev) => prev ? { ...prev, current_price: amount } : prev);
         // refresh highest bidder
         api.get(`/auctions/${id}/highest-bid`).then(({ data }) => setHighest(data));
@@ -117,9 +118,10 @@ export default function AuctionDetail() {
           }
         }
       }
-    });
-    socket.on('auctionEnded', ({ auctionId, winnerId, winnerUsername, finalPrice }) => {
-      if (Number(auctionId) === Number(id)) {
+    };
+
+    const handleAuctionEnded = ({ auctionId: endedAuctionId, winnerId, winnerUsername, finalPrice }) => {
+      if (Number(endedAuctionId) === auctionId) {
         // Update now to force ended state
         setNow(Date.now());
         
@@ -143,9 +145,24 @@ export default function AuctionDetail() {
           checkPaymentTransaction();
         }
       }
-    });
-    socket.on('bidError', (msg) => setError(msg.message || 'Bid failed'));
-    return () => socket.disconnect();
+    };
+
+    const handleBidError = (msg) => setError(msg.message || 'Bid failed');
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    socket.emit('joinAuction', auctionId);
+    socket.on('bidUpdated', handleBidUpdated);
+    socket.on('auctionEnded', handleAuctionEnded);
+    socket.on('bidError', handleBidError);
+    return () => {
+      socket.emit('leaveAuction', auctionId);
+      socket.off('bidUpdated', handleBidUpdated);
+      socket.off('auctionEnded', handleAuctionEnded);
+      socket.off('bidError', handleBidError);
+    };
   }, [socket, id, user]);
 
   useEffect(() => {

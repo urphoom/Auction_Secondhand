@@ -258,14 +258,6 @@ export default function Chat() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      if (socket.current) {
-        socket.current.emit('sendImageMessage', {
-          roomId: selectedRoom.id,
-          userId: user.id,
-          imageUrl: data.image_url
-        });
-      }
-      
       setSelectedImage(null);
       setImagePreview('');
     } catch (error) {

@@ -216,7 +216,7 @@ router.post('/:id/bids', authRequired, async (req, res) => {
   const amount = Number(req.body.amount);
   try {
     if (!amount || isNaN(amount)) return res.status(400).json({ message: 'Invalid amount' });
-    
+
     // Prevent admin from bidding
     if (req.user.role === 'admin') {
       return res.status(403).json({ message: 'Admin cannot participate in auctions' });
@@ -230,12 +230,7 @@ router.post('/:id/bids', authRequired, async (req, res) => {
     if (!auctionRows.length) throw new Error('Auction not found');
     const auction = auctionRows[0];
     if (new Date() >= new Date(auction.end_time)) throw new Error('Auction ended');
-    
-    // Check if user already has a bid for this auction
-    const [existingBid] = await conn.query('SELECT id FROM bids WHERE auction_id=? AND user_id=?', [auctionId, userId]);
-    if (existingBid.length > 0) throw new Error('You already have a bid for this auction');
-    
-    if (Number(user.balance) < amount) throw new Error('Insufficient balance');
+    if (auction.user_id === userId) throw new Error('You cannot bid on your own auction');
     
     if (auction.bid_type === 'increment') {
       // For increment bids, must be higher than current price
@@ -249,8 +244,20 @@ router.post('/:id/bids', authRequired, async (req, res) => {
       if (amount < Number(auction.start_price)) throw new Error('Bid must be at least the starting price');
     }
     
-    await conn.query('INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())', [auctionId, userId, amount]);
-    await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [amount, userId]);
+    const [existingBid] = await conn.query('SELECT id, amount FROM bids WHERE auction_id=? AND user_id=?', [auctionId, userId]);
+    const previousAmount = existingBid.length > 0 ? Number(existingBid[0].amount) : 0;
+    const additionalAmount = existingBid.length > 0 ? amount - previousAmount : amount;
+    if (additionalAmount <= 0) throw new Error('New bid must be higher than your previous bid');
+
+    if (Number(user.balance) < additionalAmount) throw new Error('Insufficient balance');
+
+    if (existingBid.length > 0) {
+      await conn.query('UPDATE bids SET amount = ? WHERE id = ?', [amount, existingBid[0].id]);
+      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+    } else {
+      await conn.query('INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())', [auctionId, userId, amount]);
+      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+    }
     await conn.commit();
     res.json({ ok: true, newPrice: auction.bid_type === 'increment' ? amount : auction.current_price });
   } catch (e) {
