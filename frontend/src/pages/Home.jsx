@@ -243,7 +243,7 @@ export default function Home() {
                   <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-3xl">👥</span>
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">ชุมชนผู้ใช้ User</h3>
+                  <h3 className="text-lg font-semibold mb-2">ชุมชนผู้ใช้</h3>
                   <p className="text-gray-600 text-sm mb-4">เชื่อมต่อและแบ่งปันประสบการณ์กับผู้ใช้คนอื่น</p>
                   {currentUser ? (
                     <Link to="/chat" className="btn btn-secondary">
