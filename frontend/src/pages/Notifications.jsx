@@ -3,6 +3,14 @@ import { useAuth } from '../hooks/useAuth.js';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.js';
 import io from 'socket.io-client';
+import {
+  Bell,
+  Clock,
+  Gavel,
+  MessageCircle,
+  Coins,
+  Trash2
+} from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
 const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:4000';
@@ -63,7 +71,11 @@ export default function Notifications() {
       setNotifications(prev => 
         prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
       );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      setUnreadCount(prev => {
+        const next = Math.max(0, prev - 1);
+        window.dispatchEvent(new CustomEvent('notificationsUnreadUpdated', { detail: next }));
+        return next;
+      });
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
@@ -76,6 +88,7 @@ export default function Notifications() {
         prev.map(n => ({ ...n, is_read: true }))
       );
       setUnreadCount(0);
+      window.dispatchEvent(new CustomEvent('notificationsUnreadUpdated', { detail: 0 }));
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
     }
@@ -89,6 +102,10 @@ export default function Notifications() {
     } catch (error) {
       console.error('Failed to delete notification:', error);
     }
+  };
+
+  const handleTopUpClick = () => {
+    navigate('/top-up');
   };
 
   const handleChatRoomClick = async (notification) => {
@@ -120,16 +137,15 @@ export default function Notifications() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">🔔 Notifications</h1>
-              <p className="page-subtitle">Stay updated with auction activities</p>
+              <h1 className="page-title">การแจ้งเตือน</h1>
+              <p className="page-subtitle">ติดตามความเคลื่อนไหวล่าสุดเกี่ยวกับการประมูล</p>
             </div>
           </div>
         </div>
         <div className="page-content">
           <div className="container">
-            <div className="card">
+              <div className="card">
               <div className="card-body text-center">
-                <div className="text-6xl mb-4">🔒</div>
                 <h3 className="text-xl font-semibold mb-2">Login Required</h3>
                 <p className="text-gray mb-4">Please login to view notifications</p>
                 <a href="/login" className="btn btn-primary">Login</a>
@@ -147,8 +163,8 @@ export default function Notifications() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">🔔 Notifications</h1>
-              <p className="page-subtitle">Stay updated with auction activities</p>
+              <h1 className="page-title">การแจ้งเตือน</h1>
+              <p className="page-subtitle">ติดตามความเคลื่อนไหวล่าสุดเกี่ยวกับการประมูล</p>
             </div>
           </div>
         </div>
@@ -170,9 +186,9 @@ export default function Notifications() {
     <div className="page">
       <div className="page-header">
         <div className="container">
-          <div className="text-center">
-            <h1 className="page-title">🔔 Notifications</h1>
-            <p className="page-subtitle">Stay updated with auction activities</p>
+            <div className="text-center">
+              <h1 className="page-title">การแจ้งเตือน</h1>
+            <p className="page-subtitle">ติดตามความเคลื่อนไหวล่าสุดเกี่ยวกับการประมูล</p>
             {unreadCount > 0 && (
               <div className="mt-2">
                 <span className="badge badge-warning">
@@ -191,7 +207,7 @@ export default function Notifications() {
             <div className="card-body">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Notification Center</h3>
+                  <h3 className="text-lg font-semibold text-white">ศูนย์การแจ้งเตือน</h3>
                   <p className="text-gray">
                     {notifications.length} total notification{notifications.length !== 1 ? 's' : ''}
                   </p>
@@ -218,76 +234,130 @@ export default function Notifications() {
 
           {/* Notifications List */}
           {notifications.length > 0 ? (
-            <div className="card">
-              <div className="card-body p-0">
-                {notifications.map(notification => (
-                  <div 
-                    key={notification.id} 
-                    className={`notification-item ${
-                      !notification.is_read ? 'bg-gray-800' : 'bg-gray-900'
-                    }`}
-                  >
-                    <div className="notification-icon">
-                      {notification.type === 'auction_won' ? '🏆' : 
-                       notification.type === 'auction_ended' ? '⏰' : 
-                       notification.type === 'bid_placed' ? '💰' : 
-                       notification.type === 'bid_refunded' ? '💸' : 
-                       notification.type === 'chat_room_created' ? '💬' : '🔔'}
-                    </div>
-                    
-                    <div className="notification-content">
-                      <div className="notification-title">
-                        {notification.title}
-                        {!notification.is_read && (
-                          <span className="badge badge-primary ml-2">New</span>
-                        )}
+            <div className="notification-list">
+              {notifications.map((notification) => {
+                  const isUnread = !notification.is_read;
+
+                  const renderIcon = () => {
+                    if (notification.type === 'auction_won' || notification.type === 'auction_ended') {
+                      return <Gavel className="w-4 h-4 text-gray-400" strokeWidth={1.5} />;
+                    }
+                    if (notification.type === 'bid_placed' || notification.type === 'bid_refunded') {
+                      return <Gavel className="w-4 h-4 text-gray-400" strokeWidth={1.5} />;
+                    }
+                    if (notification.type === 'chat_room_created') {
+                      return <MessageCircle className="w-4 h-4 text-gray-400" strokeWidth={1.5} />;
+                    }
+                    if (notification.type?.startsWith('topup_') || notification.type?.startsWith('withdrawal_')) {
+                      return <Coins className="w-4 h-4 text-gray-400" strokeWidth={1.5} />;
+                    }
+                    return <Bell className="w-4 h-4 text-gray-400" strokeWidth={1.5} />;
+                  };
+
+                  return (
+                    <div
+                      key={notification.id}
+                      className="notification-item flex items-center gap-4 px-4 py-5 border-bottom-line"
+                    >
+                      <div className="flex items-center mr-1 gap-2">
+                        {isUnread && <span className="h-1.5 w-1.5 rounded-full bg-black" />}
+                        <div className="notification-icon flex items-center justify-center">
+                          {renderIcon()}
+                        </div>
                       </div>
-                      <div className="notification-text">
-                        {notification.message}
-                      </div>
-                      <div className="notification-time">
-                        {new Date(notification.created_at).toLocaleString()}
+
+                      <div className="notification-content flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="notification-title font-semibold text-gray-900">
+                              {notification.title}
+                            </div>
+                            <div className="notification-text mt-1.5 text-sm text-gray-500">
+                              {notification.message}
+                            </div>
+                            {notification.context && (() => {
+                              let contextData;
+                              try {
+                                contextData = typeof notification.context === 'string'
+                                  ? JSON.parse(notification.context)
+                                  : notification.context;
+                              } catch (e) {
+                                contextData = null;
+                              }
+                              if (contextData && (contextData.amount || contextData.requestId)) {
+                                return (
+                                  <div className="notification-context mt-1 text-xs text-gray-500">
+                                    {contextData.amount !== undefined && (
+                                      <div>ยอดเงิน: ฿{Number(contextData.amount).toFixed(2)}</div>
+                                    )}
+                                    {contextData.requestId !== undefined && (
+                                      <div>คำขอ #{contextData.requestId}</div>
+                                    )}
+                                    {contextData.note && (
+                                      <div>หมายเหตุ: {contextData.note}</div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                          <div className="notification-time text-xs text-gray-400 whitespace-nowrap flex items-start gap-1">
+                            <Clock className="w-3 h-3 mt-0.5" strokeWidth={1.5} />
+                            <span>{new Date(notification.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                          {(notification.type === 'chat_room_created' || notification.type === 'auction_won') && (
+                            <button 
+                              onClick={() => handleChatRoomClick(notification)}
+                              className="btn btn-secondary btn-sm"
+                            >
+                              Open Chat
+                            </button>
+                          )}
+                          {(notification.type === 'topup_created' || notification.type === 'topup_approved' || notification.type === 'topup_rejected') && (
+                            <button
+                              onClick={handleTopUpClick}
+                              className="btn btn-secondary btn-sm"
+                            >
+                              ไปยังคำขอเติมเงิน
+                            </button>
+                          )}
+                          {!notification.is_read && (
+                            <button 
+                              onClick={() => markAsRead(notification.id)}
+                              className="btn btn-success btn-sm"
+                            >
+                              Mark Read
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => deleteNotification(notification.id)}
+                            className="btn btn-sm"
+                            style={{ padding: '0.25rem', borderRadius: '9999px', background: 'transparent' }}
+                            aria-label="Delete notification"
+                          >
+                            <Trash2 className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="flex gap-2">
-                      {(notification.type === 'chat_room_created' || notification.type === 'auction_won') && (
-                        <button 
-                          onClick={() => handleChatRoomClick(notification)}
-                          className="btn btn-primary btn-sm"
-                        >
-                          💬 Open Chat
-                        </button>
-                      )}
-                      {!notification.is_read && (
-                        <button 
-                          onClick={() => markAsRead(notification.id)}
-                          className="btn btn-success btn-sm"
-                        >
-                          Mark Read
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => deleteNotification(notification.id)}
-                        className="btn btn-danger btn-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
             </div>
           ) : (
             <div className="card">
-              <div className="card-body text-center">
-                <div className="text-6xl mb-4">🔔</div>
-                <h3 className="text-xl font-semibold mb-2">No Notifications</h3>
-                <p className="text-gray mb-4">
-                  You don't have any notifications yet. When you participate in auctions, 
-                  you'll receive updates here.
+              <div className="card-body flex flex-col items-center justify-center py-16">
+                <div className="mb-4 rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center">
+                  <Bell className="w-7 h-7 text-gray-300" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">ไม่มีการแจ้งเตือน</h3>
+                <p className="text-sm text-gray-500 mb-4 max-w-md text-center">
+                  เมื่อคุณเข้าร่วมการประมูลหรือมีการอัปเดตสำคัญ ระบบจะแสดงการแจ้งเตือนที่นี่
                 </p>
-                <a href="/auctions" className="btn btn-primary">Browse Auctions</a>
+                <a href="/auctions" className="btn btn-secondary btn-sm">ดูการประมูลทั้งหมด</a>
               </div>
             </div>
           )}

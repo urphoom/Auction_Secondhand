@@ -312,29 +312,35 @@ export class NotificationService {
     }
   }
 
-  static async createNotification({ userId, auctionId, type, title, message }, io = null) {
+  static async createNotification({ userId, auctionId = null, type, title, message, context = null }, io = null) {
     const pool = await getPool();
-    
+
     try {
       const [result] = await pool.query(`
-        INSERT INTO notifications (user_id, auction_id, type, title, message)
-        VALUES (?, ?, ?, ?, ?)
-      `, [userId, auctionId, type, title, message]);
+        INSERT INTO notifications (user_id, auction_id, type, title, message, context)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [userId, auctionId, type, title, message, context ? JSON.stringify(context) : null]);
 
-      // Get the created notification with auction details
       const [notification] = await pool.query(`
         SELECT n.*, a.title as auction_title, a.image as auction_image
         FROM notifications n
-        JOIN auctions a ON n.auction_id = a.id
+        LEFT JOIN auctions a ON n.auction_id = a.id
         WHERE n.id = ?
       `, [result.insertId]);
 
-      // Send real-time notification if io is available
+      if (notification.length > 0 && notification[0].context && typeof notification[0].context === 'string') {
+        try {
+          notification[0].context = JSON.parse(notification[0].context);
+        } catch (parseError) {
+          console.warn('Unable to parse notification context JSON:', parseError.message);
+        }
+      }
+
       if (io && notification.length > 0) {
         console.log(`📨 Sending notification to user ${userId}:`, {
           type: notification[0].type,
           title: notification[0].title,
-          auctionId: notification[0].auction_id
+          reference: notification[0].auction_id || notification[0].context
         });
         sendNotificationToUser(io, userId, notification[0]);
       } else {
@@ -354,18 +360,26 @@ export class NotificationService {
 
   static async getUserNotifications(userId, limit = 50) {
     const pool = await getPool();
-    
+
     try {
       const [notifications] = await pool.query(`
         SELECT n.*, a.title as auction_title, a.image as auction_image
         FROM notifications n
-        JOIN auctions a ON n.auction_id = a.id
+        LEFT JOIN auctions a ON n.auction_id = a.id
         WHERE n.user_id = ?
         ORDER BY n.created_at DESC
         LIMIT ?
       `, [userId, limit]);
-      
-      return notifications;
+      return notifications.map((entry) => {
+        if (entry.context && typeof entry.context === 'string') {
+          try {
+            entry.context = JSON.parse(entry.context);
+          } catch (parseError) {
+            console.warn('Unable to parse notification context JSON:', parseError.message);
+          }
+        }
+        return entry;
+      });
     } catch (error) {
       console.error('Error fetching user notifications:', error);
       return [];

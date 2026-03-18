@@ -29,18 +29,18 @@ export default function Login() {
   }
 
   return (
-    <div className="page">
+    <div className="page login-page">
       <div className="page-content">
         <div className="container">
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="w-full max-w-md">
+          <div className="flex items-center justify-center min-h-[70vh]">
+            <div className="w-full max-w-sm login-form">
               <div className="card">
-                <div className="card-header">
-                  <h2 className="card-title text-center">ยินดีต้อนรับกลับ! 👋</h2>
-                  <p className="text-center text-muted">เข้าสู่ระบบบัญชี AuctionHub ของคุณ</p>
+                <div className="card-header text-center">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">เข้าสู่ระบบ</h2>
+                  <p className="text-sm text-gray-500">ลงชื่อเข้าใช้เพื่อจัดการการประมูลของคุณ</p>
                 </div>
                 <div className="card-body">
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <form onSubmit={handleSubmit}>
                     <div className="form-group">
                       <label htmlFor="username" className="form-label">
                         ชื่อผู้ใช้
@@ -49,7 +49,7 @@ export default function Login() {
                         id="username"
                         type="text"
                         className="form-input"
-                        placeholder="ใส่ชื่อผู้ใช้ของคุณ"
+                        placeholder="ชื่อผู้ใช้ของคุณ"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         required
@@ -65,7 +65,7 @@ export default function Login() {
                         id="password"
                         type="password"
                         className="form-input"
-                        placeholder="ใส่รหัสผ่านของคุณ"
+                        placeholder="รหัสผ่านของคุณ"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -79,10 +79,10 @@ export default function Login() {
                       </div>
                     )}
 
-                    <div className="mt-6">
+                    <div className="login-submit-wrapper">
                       <button
                         type="submit"
-                        className="btn btn-primary w-full"
+                        className="btn btn-bid-primary w-full login-submit-btn"
                         disabled={loading}
                       >
                         {loading ? (
@@ -91,20 +91,17 @@ export default function Login() {
                             <span>กำลังเข้าสู่ระบบ...</span>
                           </div>
                         ) : (
-                          <>
-                            <span>🔑</span>
-                            <span>เข้าสู่ระบบ</span>
-                          </>
+                          <span>เข้าสู่ระบบ</span>
                         )}
                       </button>
                     </div>
                   </form>
                 </div>
-                <div className="card-footer">
+                <div className="card-footer mt-4">
                   <div className="text-center">
                     <p className="text-sm text-secondary">
                       ยังไม่มีบัญชี?{' '}
-                      <Link to="/register" className="text-primary font-medium hover:underline">
+                      <Link to="/register" className="text-primary-600 font-semibold hover:underline">
                         สมัครสมาชิกที่นี่
                       </Link>
                     </p>

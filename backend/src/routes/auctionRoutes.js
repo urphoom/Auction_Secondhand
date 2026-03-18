@@ -17,17 +17,44 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+    return cb(new Error('Only image files are allowed'));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 const router = Router();
+
+function normalizeAuctionImages(auctionRow) {
+  if (!auctionRow) return auctionRow;
+  let images = [];
+  const raw = auctionRow.images;
+  if (Array.isArray(raw)) {
+    images = raw;
+  } else if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) images = parsed;
+    } catch {
+      // ignore
+    }
+  }
+  if ((!images || images.length === 0) && auctionRow.image) {
+    images = [auctionRow.image];
+  }
+  return { ...auctionRow, images };
+}
 
 // Active auctions
 router.get('/active', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(
-    'SELECT id, title, current_price, end_time, image FROM auctions WHERE end_time > NOW() ORDER BY end_time ASC'
+    'SELECT id, title, current_price, end_time, image, images FROM auctions WHERE end_time > NOW() ORDER BY end_time ASC'
   );
-  res.json(rows);
+  res.json(rows.map(normalizeAuctionImages));
 });
 
 // Highest bid for auction
@@ -92,7 +119,7 @@ router.get('/:id/top-bidders', async (req, res) => {
 router.get('/', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query('SELECT * FROM auctions ORDER BY end_time DESC');
-  res.json(rows);
+  res.json(rows.map(normalizeAuctionImages));
 });
 
 // Get user's own auctions with winners only
@@ -122,28 +149,81 @@ router.get('/my-auctions', authRequired, async (req, res) => {
     GROUP BY a.id
     ORDER BY a.end_time DESC
   `, [req.user.id]);
-  res.json(rows);
+  res.json(rows.map(normalizeAuctionImages));
 });
 
 // Get one
 router.get('/:id', async (req, res) => {
   const pool = await getPool();
-  const [rows] = await pool.query('SELECT a.*, u.username AS owner_username FROM auctions a JOIN users u ON a.user_id = u.id WHERE a.id=?', [req.params.id]);
+  const [rows] = await pool.query(
+    'SELECT a.*, u.username AS owner_username FROM auctions a JOIN users u ON a.user_id = u.id WHERE a.id=?',
+    [req.params.id]
+  );
   if (!rows.length) return res.status(404).json({ message: 'Not found' });
-  const [bids] = await pool.query('SELECT b.*, u.username FROM bids b JOIN users u ON b.user_id=u.id WHERE auction_id=? ORDER BY created_at DESC', [req.params.id]);
-  res.json({ ...rows[0], bids });
+
+  const auction = rows[0];
+  const now = new Date();
+  const isAuctionEnded = now >= new Date(auction.end_time);
+
+  let bids = [];
+  // For sealed bids, bid history is hidden from public until handled by owner-specific route
+  if (auction.bid_type !== 'sealed' || isAuctionEnded) {
+    const [bidRows] = await pool.query(
+      'SELECT b.*, u.username FROM bids b JOIN users u ON b.user_id=u.id WHERE auction_id=? ORDER BY created_at DESC',
+      [req.params.id]
+    );
+    bids = bidRows;
+  }
+
+  res.json({ ...normalizeAuctionImages(auction), bids });
+});
+
+// Owner-only view of all bids (used for sealed bidding history)
+router.get('/:id/bids/owner', authRequired, async (req, res) => {
+  const pool = await getPool();
+  const auctionId = req.params.id;
+
+  const [rows] = await pool.query('SELECT * FROM auctions WHERE id=?', [auctionId]);
+  if (!rows.length) return res.status(404).json({ message: 'Auction not found' });
+  const auction = rows[0];
+
+  if (auction.user_id !== req.user.id) {
+    return res.status(403).json({ message: 'Only the auction owner can view full bid history' });
+  }
+
+  const [bids] = await pool.query(
+    'SELECT b.*, u.username FROM bids b JOIN users u ON b.user_id=u.id WHERE auction_id=? ORDER BY amount DESC, created_at ASC',
+    [auctionId]
+  );
+
+  res.json({ auctionId, bids });
 });
 
 // Create auction
-router.post('/', authRequired, upload.single('image'), async (req, res) => {
+router.post(
+  '/',
+  authRequired,
+  upload.fields([
+    { name: 'image', maxCount: 1 }, // legacy
+    { name: 'images', maxCount: 5 } // new
+  ]),
+  async (req, res) => {
   try {
     const { title, description, start_price, end_time, bid_type, minimum_increment, buy_now_price } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    const single = req.files?.image?.[0] || null;
+    const multi = Array.isArray(req.files?.images) ? req.files.images : [];
+    const files = [...(single ? [single] : []), ...multi].slice(0, 5);
+    const images = files.map((f) => `/uploads/${f.filename}`);
+    const image = images[0] || null;
     const pool = await getPool();
     
     // Validate required fields
     if (!title || !start_price || !end_time) {
       return res.status(400).json({ message: 'Missing required fields: title, start_price, or end_time' });
+    }
+
+    if (images.length === 0) {
+      return res.status(400).json({ message: 'ต้องอัพโหลดรูปสินค้าอย่างน้อย 1 รูป (สูงสุด 5 รูป)' });
     }
     
     // Validate bid type
@@ -167,11 +247,11 @@ router.post('/', authRequired, upload.single('image'), async (req, res) => {
     }
     
     const [result] = await pool.query(
-      'INSERT INTO auctions (title, description, image, start_price, current_price, end_time, user_id, bid_type, minimum_increment, buy_now_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, description, image, start_price, start_price, end_time, req.user.id, selectedBidType, minIncrement, buyNowPrice]
+      'INSERT INTO auctions (title, description, image, images, start_price, current_price, end_time, user_id, bid_type, minimum_increment, buy_now_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, description, image, JSON.stringify(images), start_price, start_price, end_time, req.user.id, selectedBidType, minIncrement, buyNowPrice]
     );
     const [rows] = await pool.query('SELECT * FROM auctions WHERE id=?', [result.insertId]);
-    res.json(rows[0]);
+    res.json(normalizeAuctionImages(rows[0]));
   } catch (error) {
     console.error('Error creating auction:', error);
     res.status(500).json({ message: error.message || 'Failed to create auction' });
@@ -190,7 +270,7 @@ router.put('/:id', authRequired, upload.single('image'), async (req, res) => {
   const newImage = image !== undefined ? image : auction.image;
   await pool.query('UPDATE auctions SET title=?, description=?, image=?, end_time=? WHERE id=?', [title ?? auction.title, description ?? auction.description, newImage, end_time ?? auction.end_time, req.params.id]);
   const [updated] = await pool.query('SELECT * FROM auctions WHERE id=?', [req.params.id]);
-  res.json(updated[0]);
+  res.json(normalizeAuctionImages(updated[0]));
 });
 
 // Delete auction
@@ -245,18 +325,39 @@ router.post('/:id/bids', authRequired, async (req, res) => {
     }
     
     const [existingBid] = await conn.query('SELECT id, amount FROM bids WHERE auction_id=? AND user_id=?', [auctionId, userId]);
-    const previousAmount = existingBid.length > 0 ? Number(existingBid[0].amount) : 0;
-    const additionalAmount = existingBid.length > 0 ? amount - previousAmount : amount;
-    if (additionalAmount <= 0) throw new Error('New bid must be higher than your previous bid');
 
-    if (Number(user.balance) < additionalAmount) throw new Error('Insufficient balance');
+    if (auction.bid_type === 'sealed') {
+      // In sealed bidding, each user can only place ONE bid per auction.
+      if (existingBid.length > 0) {
+        throw new Error('You have already placed a sealed bid on this auction');
+      }
 
-    if (existingBid.length > 0) {
-      await conn.query('UPDATE bids SET amount = ? WHERE id = ?', [amount, existingBid[0].id]);
-      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+      const requiredAmount = amount;
+      if (Number(user.balance) < requiredAmount) throw new Error('ยอดเงินไม่เพียงพอ');
+
+      await conn.query(
+        'INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())',
+        [auctionId, userId, amount]
+      );
+      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [requiredAmount, userId]);
     } else {
-      await conn.query('INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())', [auctionId, userId, amount]);
-      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+      // Increment bidding can adjust previous bid, only paying the difference
+      const previousAmount = existingBid.length > 0 ? Number(existingBid[0].amount) : 0;
+      const additionalAmount = existingBid.length > 0 ? amount - previousAmount : amount;
+      if (additionalAmount <= 0) throw new Error('New bid must be higher than your previous bid');
+
+      if (Number(user.balance) < additionalAmount) throw new Error('ยอดเงินไม่เพียงพอ');
+
+      if (existingBid.length > 0) {
+        await conn.query('UPDATE bids SET amount = ? WHERE id = ?', [amount, existingBid[0].id]);
+        await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+      } else {
+        await conn.query(
+          'INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())',
+          [auctionId, userId, amount]
+        );
+        await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+      }
     }
     await conn.commit();
     res.json({ ok: true, newPrice: auction.bid_type === 'increment' ? amount : auction.current_price });
@@ -336,7 +437,7 @@ router.post('/:id/buy-now', authRequired, async (req, res) => {
     // Check if user has sufficient balance
     if (Number(user.balance) < buyNowPrice) {
       await conn.rollback();
-      return res.status(400).json({ message: 'Insufficient balance' });
+      return res.status(400).json({ message: 'ยอดเงินไม่เพียงพอ' });
     }
     
     // Update auction: end it immediately and set current price to buy now price

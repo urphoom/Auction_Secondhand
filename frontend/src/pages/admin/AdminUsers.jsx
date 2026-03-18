@@ -102,7 +102,6 @@ export default function AdminUsers() {
         </div>
       ) : error ? (
         <div className="alert alert-error">
-          <div className="alert-icon">⚠️</div>
           <div>
             <p className="alert-title">ไม่สามารถโหลดข้อมูลได้</p>
             <p className="alert-text">{error}</p>

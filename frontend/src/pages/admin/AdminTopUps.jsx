@@ -14,6 +14,12 @@ const statusMeta = {
   rejected: { label: 'ปฏิเสธ', tagClass: 'admin-status-tag admin-status-tag--rejected' }
 };
 
+const actionLabels = {
+  created: 'ผู้ใช้ส่งคำขอ',
+  approved: 'แอดมินอนุมัติ',
+  rejected: 'แอดมินปฏิเสธ'
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 const FILE_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
 
@@ -24,17 +30,39 @@ export default function AdminTopUps() {
   const [filter, setFilter] = useState('all');
   const [processingId, setProcessingId] = useState(null);
   const [actionModal, setActionModal] = useState(null);
+  const [logsModal, setLogsModal] = useState(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState('');
+  const [logs, setLogs] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchValue, setSearchValue] = useState('');
+  const [pageSize, setPageSize] = useState(10);
 
   const loadRequests = async () => {
     try {
       setLoading(true);
-      const query = filter === 'all' ? '' : `?status=${filter}`;
-      const { data } = await api.get(`/admin/top-ups${query}`);
-      setRequests(data);
+      const params = {
+        page,
+        limit: pageSize,
+        search: searchValue || undefined
+      };
+      if (filter !== 'all') params.status = filter;
+
+      const { data } = await api.get('/admin/top-ups', { params });
+      setRequests(data?.data || []);
+      const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 };
+      setTotalPages(pagination.totalPages || 1);
+      setTotalItems(pagination.total || 0);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch top up requests:', err);
       setError(err.response?.data?.message || 'ไม่สามารถโหลดคำขอเติมเงินได้');
+      setRequests([]);
+      setTotalPages(1);
+      setTotalItems(0);
     } finally {
       setLoading(false);
     }
@@ -43,9 +71,47 @@ export default function AdminTopUps() {
   useEffect(() => {
     loadRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, page, searchValue, pageSize]);
 
   const visibleRequests = useMemo(() => requests, [requests]);
+
+  const handleFilterChange = (value) => {
+    setFilter(value);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (event) => {
+    setPageSize(Number(event.target.value));
+    setPage(1);
+  };
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    setPage(1);
+    setSearchValue(searchInput.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearchValue('');
+    setPage(1);
+  };
+
+  const openLogsModal = async (request) => {
+    setLogsModal(request);
+    setLogs([]);
+    setLogsError('');
+    setLogsLoading(true);
+    try {
+      const { data } = await api.get(`/admin/top-ups/${request.id}/logs`);
+      setLogs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load top-up logs:', err);
+      setLogsError(err.response?.data?.message || 'ไม่สามารถโหลดประวัติคำขอได้');
+    } finally {
+      setLogsLoading(false);
+    }
+  };
 
   const submitAction = async (event) => {
     event.preventDefault();
@@ -81,13 +147,30 @@ export default function AdminTopUps() {
                 <button
                   key={item.value}
                   type="button"
-                  onClick={() => setFilter(item.value)}
+                  onClick={() => handleFilterChange(item.value)}
                   className={`admin-filter-tab ${filter === item.value ? 'is-active' : ''}`}
                 >
                   {item.label}
                 </button>
               ))}
             </div>
+            <form className="admin-search" onSubmit={handleSearchSubmit}>
+              <input
+                type="search"
+                placeholder="ค้นหา ID หรือชื่อผู้ใช้"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="form-input"
+              />
+              <div className="admin-search-actions">
+                <button type="submit" className="btn btn-secondary btn-sm">ค้นหา</button>
+                {searchValue && (
+                  <button type="button" className="btn btn-sm" onClick={handleClearSearch}>
+                    ล้าง
+                  </button>
+                )}
+              </div>
+            </form>
             <button onClick={loadRequests} className="btn btn-secondary btn-sm">
               รีเฟรช
             </button>
@@ -104,7 +187,6 @@ export default function AdminTopUps() {
         </div>
       ) : error ? (
         <div className="alert alert-error">
-          <div className="alert-icon">⚠️</div>
           <div>
             <p className="alert-title">ไม่สามารถโหลดคำขอได้</p>
             <p className="alert-text">{error}</p>
@@ -113,73 +195,119 @@ export default function AdminTopUps() {
       ) : visibleRequests.length === 0 ? (
         <div className="admin-empty-state">ไม่มีคำขอในสถานะนี้</div>
       ) : (
-        <div className="admin-request-list">
-          {visibleRequests.map((request) => (
-            <div key={request.id} className="card admin-request-card">
-              <div className="card-body">
-                <div className="admin-request-card__header">
-                  <div>
-                    <h3>{request.user_username}</h3>
-                    <p>ส่งเมื่อ {new Date(request.created_at).toLocaleString('th-TH')}</p>
-                    {request.note && <p className="admin-request-note">หมายเหตุผู้ใช้: {request.note}</p>}
-                    {request.processed_by_username && (
-                      <p className="admin-request-note">
-                        ดำเนินการโดย {request.processed_by_username}{' '}
-                        {request.processed_at ? `เมื่อ ${new Date(request.processed_at).toLocaleString('th-TH')}` : ''}
-                      </p>
-                    )}
+        <>
+          <div className="admin-request-summary">
+            คำขอทั้งหมด {totalItems} รายการ · แสดงต่อหน้า
+            <select value={pageSize} onChange={handlePageSizeChange} className="admin-page-size-select">
+              {[5, 10, 20, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="admin-request-list">
+            {visibleRequests.map((request) => (
+              <div key={request.id} className="card admin-request-card">
+                <div className="card-body">
+                  <div className="admin-request-card__header">
+                    <div>
+                      <h3>{request.user_username}</h3>
+                      <p>ส่งเมื่อ {new Date(request.created_at).toLocaleString('th-TH')}</p>
+                      {request.note && <p className="admin-request-note">หมายเหตุผู้ใช้: {request.note}</p>}
+                      {request.processed_by_username && (
+                        <p className="admin-request-note">
+                          ดำเนินการโดย {request.processed_by_username}{' '}
+                          {request.processed_at ? `เมื่อ ${new Date(request.processed_at).toLocaleString('th-TH')}` : ''}
+                        </p>
+                      )}
+                    </div>
+                    <div className="admin-request-card__meta">
+                      <span className="admin-meta-value admin-meta-value--emerald">
+                        {new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(request.amount || 0))}
+                      </span>
+                      <span className={statusMeta[request.status]?.tagClass ?? 'admin-status-tag'}>
+                        {statusMeta[request.status]?.label ?? request.status}
+                      </span>
+                      {request.slip_url && (
+                        <div className="admin-slip-preview">
+                          <img
+                            src={`${FILE_BASE_URL}${request.slip_url}`}
+                            alt={`สลิปคำขอ #${request.id}`}
+                            className="topup-thumbnail"
+                          />
+                          <a
+                            href={`${FILE_BASE_URL}${request.slip_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="admin-link"
+                          >
+                            📎 เปิดดูสลีปขนาดเต็ม
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="admin-request-card__meta">
-                    <span className="admin-meta-value admin-meta-value--emerald">
-                      {new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(request.amount || 0))}
-                    </span>
-                    <span className={statusMeta[request.status]?.tagClass ?? 'admin-status-tag'}>
-                      {statusMeta[request.status]?.label ?? request.status}
-                    </span>
-                    {request.slip_url && (
-                      <div className="admin-slip-preview">
-                        <img
-                          src={`${FILE_BASE_URL}${request.slip_url}`}
-                          alt={`สลิปคำขอ #${request.id}`}
-                          className="topup-thumbnail"
-                        />
-                        <a
-                          href={`${FILE_BASE_URL}${request.slip_url}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="admin-link"
-                        >
-                          📎 เปิดดูสลีปขนาดเต็ม
-                        </a>
-                      </div>
-                    )}
+
+                  {request.status === 'pending' && (
+                    <div className="admin-request-card__actions">
+                      <button
+                        type="button"
+                        onClick={() => setActionModal({ request, action: 'approve', note: '' })}
+                        disabled={processingId === request.id}
+                        className="btn btn-success btn-sm"
+                      >
+                        {processingId === request.id ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActionModal({ request, action: 'reject', note: '' })}
+                        disabled={processingId === request.id}
+                        className="btn btn-danger btn-sm"
+                      >
+                        {processingId === request.id ? 'กำลังปฏิเสธ...' : 'ปฏิเสธ'}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="admin-request-card__footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => openLogsModal(request)}
+                    >
+                      ดูประวัติคำขอ
+                    </button>
                   </div>
                 </div>
-
-                {request.status === 'pending' && (
-                  <div className="admin-request-card__actions">
-                    <button
-                      type="button"
-                      onClick={() => setActionModal({ request, action: 'approve', note: '' })}
-                      disabled={processingId === request.id}
-                      className="btn btn-success btn-sm"
-                    >
-                      {processingId === request.id ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActionModal({ request, action: 'reject', note: '' })}
-                      disabled={processingId === request.id}
-                      className="btn btn-danger btn-sm"
-                    >
-                      {processingId === request.id ? 'กำลังปฏิเสธ...' : 'ปฏิเสธ'}
-                    </button>
-                  </div>
-                )}
               </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="admin-pagination">
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              >
+                ← ก่อนหน้า
+              </button>
+              <span className="admin-pagination-info">
+                หน้า {page} จาก {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              >
+                ถัดไป →
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {actionModal && (
@@ -215,6 +343,88 @@ export default function AdminTopUps() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {logsModal && (
+        <div className="admin-modal">
+          <div className="admin-modal__content admin-modal__content--sm">
+            <h2 className="admin-modal__title">ประวัติคำขอ #{logsModal.id}</h2>
+            <p className="admin-modal__subtitle">
+              ผู้ใช้: <strong>{logsModal.user_username}</strong>
+            </p>
+            <div className="admin-log-list">
+              {logsLoading ? (
+                <div className="admin-log-empty">
+                  <div className="spinner" /> กำลังโหลดประวัติ...
+                </div>
+              ) : logsError ? (
+                <div className="alert alert-error">
+                  <span>{logsError}</span>
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="admin-log-empty">ไม่มีประวัติคำขอ</div>
+              ) : (
+                logs.map((log) => {
+                  let parsedDetails = null;
+                  if (log.details) {
+                    try {
+                      parsedDetails = JSON.parse(log.details);
+                    } catch (e) {
+                      parsedDetails = null;
+                    }
+                  }
+
+                  return (
+                    <div key={log.id} className="admin-log-item">
+                      <div className="admin-log-time">
+                        {new Date(log.created_at).toLocaleString('th-TH')}
+                      </div>
+                      <div className="admin-log-body">
+                        <span className="admin-log-action">{actionLabels[log.action] || log.action}</span>
+                        <span className="admin-log-actor">
+                          {log.actor_type === 'admin'
+                            ? `แอดมิน: ${log.actor_username || 'ไม่ทราบชื่อ'}`
+                            : log.actor_type === 'user'
+                            ? `ผู้ใช้: ${log.actor_username || 'ไม่ทราบชื่อ'}`
+                            : 'ระบบ'}
+                        </span>
+                        {parsedDetails ? (
+                          <div className="admin-log-details">
+                            {parsedDetails.amount !== undefined && (
+                              <div>
+                                <strong>จำนวนเงิน:</strong> ฿{Number(parsedDetails.amount).toFixed(2)}
+                              </div>
+                            )}
+                            {parsedDetails.note !== undefined && (
+                              <div>
+                                <strong>หมายเหตุ:</strong> {parsedDetails.note || '—'}
+                              </div>
+                            )}
+                            {parsedDetails.slipUrl && (
+                              <div>
+                                <strong>ไฟล์สลิป:</strong>{' '}
+                                <a href={`${FILE_BASE_URL}${parsedDetails.slipUrl}`} target="_blank" rel="noopener noreferrer" className="admin-link">
+                                  เปิดดู
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        ) : log.details ? (
+                          <pre className="admin-log-details">{log.details}</pre>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="admin-modal__actions">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLogsModal(null)}>
+                ปิด
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

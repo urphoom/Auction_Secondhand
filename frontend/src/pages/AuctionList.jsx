@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api.js';
 import AuctionCard from '../components/AuctionCard.jsx';
+import { ArrowUpDown, Filter } from 'lucide-react';
 
 export default function AuctionList() {
   const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredAuctions, setFilteredAuctions] = useState([]);
+  const [sortBy, setSortBy] = useState('latest');
+  const [category, setCategory] = useState('all');
 
   useEffect(() => {
     async function loadAuctions() {
@@ -49,7 +52,41 @@ export default function AuctionList() {
     });
   };
 
-  const displayAuctions = filterAuctions(filteredAuctions);
+  const categories = Array.from(
+    new Set(
+      auctions
+        .map((a) => a.category)
+        .filter((c) => c && typeof c === 'string')
+    )
+  );
+
+  let displayAuctions = filterAuctions(filteredAuctions);
+
+  if (category !== 'all') {
+    displayAuctions = displayAuctions.filter(
+      (auction) => auction.category === category
+    );
+  }
+
+  displayAuctions = [...displayAuctions].sort((a, b) => {
+    const getDate = (auction) =>
+      new Date(auction.created_at || auction.start_time || auction.end_time).getTime();
+
+    switch (sortBy) {
+      case 'price_low_high':
+        return Number(a.current_price) - Number(b.current_price);
+      case 'price_high_low':
+        return Number(b.current_price) - Number(a.current_price);
+      case 'ending_soon': {
+        const aEnd = new Date(a.end_time).getTime();
+        const bEnd = new Date(b.end_time).getTime();
+        return aEnd - bEnd;
+      }
+      case 'latest':
+      default:
+        return getDate(b) - getDate(a);
+    }
+  });
 
   if (loading) {
     return (
@@ -57,7 +94,7 @@ export default function AuctionList() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">🏆 Browse Auctions</h1>
+              <h1 className="page-title">Browse Auctions</h1>
               <p className="page-subtitle">Discover amazing items up for auction</p>
             </div>
           </div>
@@ -80,15 +117,14 @@ export default function AuctionList() {
     <div className="page">
       <div className="page-content">
         <div className="container">
-          <div className="text-center mb-4">
-            <h1 className="text-2xl font-bold mb-2">🏆 เรียกดูการประมูล</h1>
+            <div className="text-center mb-4">
+            <h1 className="text-2xl font-bold mb-2">เรียกดูการประมูล</h1>
             <p className="text-muted">ค้นพบสินค้าที่น่าสนใจที่กำลังประมูล</p>
             
             {/* Platform Fee Notice */}
             <div className="mt-4 max-w-2xl mx-auto">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex items-center justify-center gap-2 mb-1">
-                  <span className="text-blue-600">💰</span>
                   <span className="text-sm font-medium text-blue-800">ค่าธรรมเนียมเว็บไซต์: 5%</span>
                 </div>
                 <p className="text-xs text-blue-700">
@@ -98,11 +134,11 @@ export default function AuctionList() {
             </div>
           </div>
 
-          {/* Search Bar */}
+          {/* Search Bar + Filters */}
           <div className="card mb-6">
             <div className="card-body">
               <div className="form-group">
-                <label className="form-label">🔍 ค้นหาการประมูล</label>
+                <label className="form-label">ค้นหาการประมูล</label>
                 <input
                   type="text"
                   placeholder="ค้นหาตามชื่อหรือคำอธิบาย..."
@@ -111,7 +147,52 @@ export default function AuctionList() {
                   className="form-input"
                 />
                 <div className="form-help">
-                  {searchTerm ? `พบ ${displayAuctions.length} การประมูล` : `แสดง ${displayAuctions.length} การประมูล`}
+                  {searchTerm
+                    ? `พบ ${displayAuctions.length} การประมูล`
+                    : `แสดง ${displayAuctions.length} การประมูล`}
+                </div>
+              </div>
+
+              <div className="auction-filters-bar">
+                <div className="text-xs text-gray-500">
+                  ตัวกรองจะอัปเดตแบบเรียลไทม์ตามการค้นหาและการเลือกของคุณ
+                </div>
+                <div className="auction-filters-controls">
+                  <div className="auction-filter">
+                    <label className="auction-filter-label">
+                      <ArrowUpDown className="w-3.5 h-3.5" />
+                      <span>เรียงลำดับ</span>
+                    </label>
+                    <select
+                      className="auction-filter-select"
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                    >
+                      <option value="latest">ล่าสุด</option>
+                      <option value="price_low_high">ราคาต่ำไปสูง</option>
+                      <option value="price_high_low">ราคาสูงไปต่ำ</option>
+                      <option value="ending_soon">ใกล้จบประมูล</option>
+                    </select>
+                  </div>
+
+                  <div className="auction-filter">
+                    <label className="auction-filter-label">
+                      <Filter className="w-3.5 h-3.5" />
+                      <span>หมวดหมู่</span>
+                    </label>
+                    <select
+                      className="auction-filter-select"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <option value="all">ทั้งหมด</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -149,7 +230,7 @@ export default function AuctionList() {
                       />
                     ) : (
                       <div className="auction-image flex items-center justify-center bg-gray-100 text-gray-500">
-                        🖼️ No Image
+                        No Image
                       </div>
                     )}
                     
@@ -177,12 +258,14 @@ export default function AuctionList() {
                       <div className="auction-time mb-3">
                         {isEnded ? (
                           justEnded ? (
-                            <span className="text-warning">⏰ เพิ่งจบเมื่อ {Math.floor(timeSinceEnd / 60000)} นาทีที่แล้ว</span>
+                            <span className="text-warning">
+                              เพิ่งจบเมื่อ {Math.floor(timeSinceEnd / 60000)} นาทีที่แล้ว
+                            </span>
                           ) : (
-                            <span className="text-danger">🏁 การประมูลจบแล้ว</span>
+                            <span className="text-danger">การประมูลจบแล้ว</span>
                           )
                         ) : (
-                          <span className="text-success">⏰ จบเมื่อ: {endTime.toLocaleString()}</span>
+                          <span className="text-success">จบเมื่อ: {endTime.toLocaleString()}</span>
                         )}
                       </div>
                       
@@ -199,7 +282,6 @@ export default function AuctionList() {
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">🔍</div>
               <div className="empty-title">ไม่พบการประมูล</div>
               <div className="empty-description">
                 {searchTerm 

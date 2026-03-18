@@ -21,11 +21,13 @@ router.get('/transactions', authRequired, async (req, res) => {
              pe.platform_fee,
              pe.seller_amount,
              pe.status as escrow_status,
-             si.tracking_number,
-             si.shipping_method,
-             si.estimated_delivery,
-             si.shipping_address,
-             si.notes
+            si.recipient_name,
+            si.recipient_phone,
+            si.tracking_number,
+            si.shipping_method,
+            si.estimated_delivery,
+            si.shipping_address,
+            si.notes
       FROM payment_transactions pt
       JOIN auctions a ON pt.auction_id = a.id
       JOIN users winner ON pt.winner_id = winner.id
@@ -64,6 +66,8 @@ router.get('/transactions/:id', authRequired, async (req, res) => {
              pe.platform_fee,
              pe.seller_amount,
              pe.status as escrow_status,
+             si.recipient_name,
+             si.recipient_phone,
              si.shipping_address,
              si.shipping_method,
              si.tracking_number,
@@ -164,7 +168,30 @@ router.post('/transactions', authRequired, async (req, res) => {
 // Process payment (winner pays)
 router.post('/transactions/:id/pay', authRequired, async (req, res) => {
   const pool = await getPool();
-  
+  const { shippingAddress, recipientName, recipientPhone, shippingNote, shippingMethod } = req.body;
+
+  const trimmedAddress = shippingAddress?.toString().trim();
+  const trimmedName = recipientName?.toString().trim();
+  const trimmedPhone = recipientPhone?.toString().trim();
+  const cleanedPhone = trimmedPhone ? trimmedPhone.replace(/[^0-9+]/g, '') : '';
+  const note = shippingNote ? shippingNote.toString().trim() : null;
+  const method = shippingMethod ? shippingMethod.toString().trim() : 'standard';
+
+  if (!trimmedName || trimmedName.length < 2) {
+    return res.status(400).json({ message: 'กรุณากรอกชื่อผู้รับ' });
+  }
+
+  if (!cleanedPhone || cleanedPhone.length < 6) {
+    return res.status(400).json({ message: 'กรุณากรอกเบอร์โทรที่ถูกต้อง' });
+  }
+
+  if (!trimmedAddress || trimmedAddress.length < 10) {
+    return res.status(400).json({ message: 'กรุณากรอกที่อยู่สำหรับจัดส่ง' });
+  }
+
+  const allowedMethods = ['standard', 'express', 'ems', 'registered', 'pickup'];
+  const normalizedMethod = allowedMethods.includes(method) ? method : 'standard';
+
   try {
     // Check if transaction exists and user is the winner
     const [transactions] = await pool.query(`
@@ -197,19 +224,31 @@ router.post('/transactions/:id/pay', authRequired, async (req, res) => {
     
     // Don't release money to seller yet - wait for delivery confirmation
     
+    await pool.query(`
+      INSERT INTO shipping_info (transaction_id, recipient_name, recipient_phone, shipping_address, shipping_method, notes)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        recipient_name = VALUES(recipient_name),
+        recipient_phone = VALUES(recipient_phone),
+        shipping_address = VALUES(shipping_address),
+        shipping_method = VALUES(shipping_method),
+        notes = VALUES(notes),
+        updated_at = CURRENT_TIMESTAMP
+    `, [req.params.id, trimmedName, cleanedPhone, trimmedAddress, normalizedMethod, note]);
+    
     // Create notifications for seller
     await pool.query(`
       INSERT INTO payment_notifications (transaction_id, user_id, type, title, message)
       VALUES (?, ?, 'payment_received', 'Payment Received', ?)
     `, [req.params.id, transaction.seller_id, 
-        `Payment received for auction "${transaction.auction_title}": $${transaction.seller_amount} (Platform fee: $${transaction.platform_fee}). Money is held in escrow until buyer confirms delivery.`]);
+        `Payment received for auction "${transaction.auction_title}": ฿${transaction.seller_amount} (Platform fee: ฿${transaction.platform_fee}). Money is held in escrow until buyer confirms delivery.`]);
     
     // Create notifications for winner
     await pool.query(`
       INSERT INTO payment_notifications (transaction_id, user_id, type, title, message)
       VALUES (?, ?, 'payment_received', 'Payment Processed', ?)
     `, [req.params.id, req.user.id, 
-        `Payment of $${transaction.amount} has been processed for auction "${transaction.auction_title}". Waiting for seller to ship the item.`]);
+        `Payment of ฿${transaction.amount} has been processed for auction "${transaction.auction_title}". Waiting for seller to ship the item.`]);
     
     console.log(`💰 Payment processed: Auction "${transaction.auction_title}"`);
     console.log(`   Total Amount: $${transaction.amount}`);
@@ -225,7 +264,7 @@ router.post('/transactions/:id/pay', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Error processing payment:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(error.status || 500).json({ message: error.message || 'Internal server error' });
   }
 });
 
@@ -484,6 +523,59 @@ router.get('/balance', authRequired, async (req, res) => {
   } catch (error) {
     console.error('Error getting user balance:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.post('/transactions/:id/tracking', authRequired, async (req, res) => {
+  const pool = await getPool();
+  const { trackingNumber, estimatedDelivery, shippingNote } = req.body;
+
+  const trimmedTracking = trackingNumber?.toString().trim();
+  const trimmedNote = shippingNote ? shippingNote.toString().trim() : null;
+  const deliveryDate = estimatedDelivery ? new Date(estimatedDelivery) : null;
+
+  if (!trimmedTracking || trimmedTracking.length < 4) {
+    return res.status(400).json({ message: 'กรุณากรอกหมายเลขพัสดุให้ถูกต้อง (อย่างน้อย 4 ตัวอักษร)' });
+  }
+
+  try {
+    const [transactions] = await pool.query(`
+      SELECT pt.*, a.title as auction_title
+      FROM payment_transactions pt
+      JOIN auctions a ON pt.auction_id = a.id
+      WHERE pt.id = ? AND pt.seller_id = ?
+    `, [req.params.id, req.user.id]);
+
+    if (transactions.length === 0) {
+      return res.status(404).json({ message: 'ไม่พบรายการคำสั่งซื้อ หรือคุณไม่ใช่ผู้ขายในรายการนี้' });
+    }
+
+    const transaction = transactions[0];
+
+    if (!['paid', 'shipped'].includes(transaction.status)) {
+      return res.status(400).json({ message: 'สามารถเพิ่มหมายเลขพัสดุได้เฉพาะรายการที่ชำระเงินหรือกำลังจัดส่งเท่านั้น' });
+    }
+
+    await pool.query(`
+      UPDATE payment_transactions
+      SET status = 'shipped', shipped_at = IFNULL(shipped_at, NOW())
+      WHERE id = ?
+    `, [req.params.id]);
+
+    await pool.query(`
+      INSERT INTO shipping_info (transaction_id, tracking_number, estimated_delivery, notes)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        tracking_number = VALUES(tracking_number),
+        estimated_delivery = VALUES(estimated_delivery),
+        notes = VALUES(notes),
+        updated_at = CURRENT_TIMESTAMP
+    `, [req.params.id, trimmedTracking, deliveryDate || null, trimmedNote]);
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating tracking info:', error);
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการบันทึกหมายเลขพัสดุ' });
   }
 });
 

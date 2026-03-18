@@ -16,6 +16,7 @@ import chatRoutes from './routes/chatRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import topUpRoutes from './routes/topUpRoutes.js';
+import withdrawalRoutes from './routes/withdrawalRoutes.js';
 import { registerBidSocketHandlers } from './sockets/bidSocket.js';
 import { registerChatSocketHandlers } from './sockets/chatSocket.js';
 import { registerNotificationSocketHandlers } from './sockets/notificationSocket.js';
@@ -52,6 +53,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/top-ups', topUpRoutes);
+app.use('/api/withdrawals', withdrawalRoutes);
 
 // Health
 app.get('/api/health', async (req, res) => {
@@ -76,6 +78,7 @@ const PORT = process.env.PORT || 4000;
 const uploadsPath = path.join(__dirname, '..', 'uploads');
 const chatUploadsPath = path.join(uploadsPath, 'chat');
 const topUpUploadsPath = path.join(uploadsPath, 'topups');
+const withdrawalUploadsPath = path.join(uploadsPath, 'withdrawals');
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
@@ -84,6 +87,9 @@ if (!fs.existsSync(chatUploadsPath)) {
 }
 if (!fs.existsSync(topUpUploadsPath)) {
   fs.mkdirSync(topUpUploadsPath, { recursive: true });
+}
+if (!fs.existsSync(withdrawalUploadsPath)) {
+  fs.mkdirSync(withdrawalUploadsPath, { recursive: true });
 }
 
 server.listen(PORT, () => {

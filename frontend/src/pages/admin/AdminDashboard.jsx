@@ -46,7 +46,6 @@ export default function AdminDashboard() {
 
       {error ? (
         <div className="alert alert-error">
-          <div className="alert-icon">⚠️</div>
           <div>
             <p className="alert-title">เกิดข้อผิดพลาด</p>
             <p className="alert-text">{error}</p>
@@ -60,25 +59,25 @@ export default function AdminDashboard() {
                 title="ผู้ใช้ทั้งหมด"
                 value={stats?.users?.total_users ?? 0}
                 description={`ผู้ใช้ที่มียอดเงิน: ${stats?.users?.users_with_balance ?? 0}`}
-                icon="👥"
+                icon=""
               />
               <StatCard
                 title="การประมูลทั้งหมด"
                 value={stats?.auctions?.total_auctions ?? 0}
                 description={`กำลังเปิด: ${stats?.auctions?.active_auctions ?? 0}`}
-                icon="📦"
+                icon=""
               />
               <StatCard
                 title="ยอดชำระเงินรวม"
                 value={formatCurrency(stats?.payments?.total_volume ?? 0)}
                 description={`จำนวนรายการ: ${stats?.payments?.total_transactions ?? 0}`}
-                icon="💳"
+                icon=""
               />
               <StatCard
-                title="คำขอเติมเงินที่รอดำเนินการ"
+                title="คำขอที่รอดำเนินการ"
                 value={stats?.topUps?.pending_requests ?? 0}
                 description={`ทั้งหมด ${stats?.topUps?.total_requests ?? 0} รายการ`}
-                icon="📝"
+                icon=""
               />
             </div>
           </section>

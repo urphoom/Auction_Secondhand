@@ -3,6 +3,16 @@ import { useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import api from '../services/api.js';
 import { useAuth } from '../hooks/useAuth.js';
+import {
+  Clock,
+  Gavel,
+  Tag,
+  Zap,
+  User,
+  Users,
+  Info,
+  Circle
+} from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
 const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:4000';
@@ -10,17 +20,22 @@ const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:
 export default function AuctionDetail() {
   const { id } = useParams();
   const [auction, setAuction] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [bid, setBid] = useState('');
   const [error, setError] = useState('');
   const [now, setNow] = useState(Date.now());
   const { user } = useAuth();
   const [highest, setHighest] = useState({ username: null, amount: null });
   const [topBidders, setTopBidders] = useState([]);
+  const [ownerBids, setOwnerBids] = useState([]);
   const [isWinner, setIsWinner] = useState(false);
   const [hasPaymentTransaction, setHasPaymentTransaction] = useState(false);
   const [buyNowLoading, setBuyNowLoading] = useState(false);
   const [userBalance, setUserBalance] = useState(null);
   const [winnerInfo, setWinnerInfo] = useState(null);
+  const [activeTab, setActiveTab] = useState('details');
+  const [buyNowModalOpen, setBuyNowModalOpen] = useState(false);
+  const [bidModalOpen, setBidModalOpen] = useState(false);
 
   const socket = useMemo(() => io(SOCKET_URL), []);
 
@@ -47,6 +62,7 @@ export default function AuctionDetail() {
   useEffect(() => {
     api.get(`/auctions/${id}`).then(({ data }) => {
       setAuction(data);
+      setSelectedImageIndex(0);
       // Check if auction ended and get winner info
       if (new Date(data.end_time) <= new Date()) {
         checkWinner(data);
@@ -175,6 +191,22 @@ export default function AuctionDetail() {
     api.get(`/auctions/${id}/top-bidders`).then(({ data }) => setTopBidders(data));
   }, [id]);
 
+  // Load full bid history for owner on sealed auctions
+  useEffect(() => {
+    if (!auction || !user) return;
+    if (auction.bid_type !== 'sealed') return;
+    if (auction.user_id !== user.id) return;
+
+    api
+      .get(`/auctions/${id}/bids/owner`)
+      .then(({ data }) => {
+        setOwnerBids(data.bids || []);
+      })
+      .catch(() => {
+        setOwnerBids([]);
+      });
+  }, [auction, user, id]);
+
   const endsIn = useMemo(() => {
     if (!auction) return 0;
     return new Date(auction.end_time).getTime() - now;
@@ -182,21 +214,79 @@ export default function AuctionDetail() {
 
   const ended = endsIn <= 0;
 
-  async function placeBid() {
+  const bidsForHistory = auction?.bids || [];
+  const highestBidAmount = bidsForHistory.length
+    ? Math.max(...bidsForHistory.map((b) => Number(b.amount)))
+    : null;
+
+  const maskBidUsername = (username, index) => {
+    const suffix = String(index + 1).padStart(3, '0');
+    return `u***${suffix}`;
+  };
+
+  const formatRemaining = (ms) => {
+    if (ms <= 0) return 'การประมูลจบแล้ว';
+    const totalSeconds = Math.floor(ms / 1000);
+    const days = Math.floor(totalSeconds / (24 * 3600));
+    const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts = [];
+    if (days > 0) parts.push(`${days} วัน`);
+    if (hours > 0 || days > 0) parts.push(`${hours} ชั่วโมง`);
+    if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes} นาที`);
+    parts.push(`${seconds} วินาที`);
+    return parts.join(' ');
+  };
+
+  function openBidConfirm() {
     setError('');
-    if (!user) return setError('Login to bid');
-    if (ended) return setError('Auction ended');
+    if (!user) {
+      setError('Login to bid');
+      return;
+    }
+    if (ended) {
+      setError('Auction ended');
+      return;
+    }
     const amount = Number(bid);
-    
-    // Different validation based on bid type
+    if (!amount || Number.isNaN(amount)) {
+      setError('กรุณากรอกจำนวนเงินให้ถูกต้อง');
+      return;
+    }
+
+    // Validation per bid type (same rule as backend)
     if (auction.bid_type === 'increment') {
-      if (!amount || amount <= Number(auction.current_price)) return setError('Enter a higher amount');
+      if (amount <= Number(auction.current_price)) {
+        setError('Enter a higher amount');
+        return;
+      }
       if (auction.minimum_increment && amount < Number(auction.current_price) + Number(auction.minimum_increment)) {
-        return setError(`Bid must be at least ฿${(Number(auction.current_price) + Number(auction.minimum_increment)).toFixed(2)} (current price + minimum increment)`);
+        setError(`Bid must be at least ฿${(Number(auction.current_price) + Number(auction.minimum_increment)).toFixed(2)} (current price + minimum increment)`);
+        return;
       }
     } else if (auction.bid_type === 'sealed') {
-      if (!amount || amount < Number(auction.start_price)) return setError(`Bid must be at least the starting price of ฿${Number(auction.start_price).toFixed(2)}`);
+      if (amount < Number(auction.start_price)) {
+        setError(`Bid must be at least the starting price of ฿${Number(auction.start_price).toFixed(2)}`);
+        return;
+      }
     }
+
+    setBidModalOpen(true);
+  }
+
+  async function placeBid() {
+    setError('');
+    if (!user) {
+      setError('Login to bid');
+      return;
+    }
+    if (ended) {
+      setError('Auction ended');
+      return;
+    }
+
+    const amount = Number(bid);
     
     try {
       await api.post(`/auctions/${id}/bids`, { amount });
@@ -212,10 +302,12 @@ export default function AuctionDetail() {
       setTopBidders(topRes.data);
     } catch (e) {
       setError(e.response?.data?.message || 'Bid failed');
+    } finally {
+      setBidModalOpen(false);
     }
   }
 
-  async function handleBuyNow() {
+  async function handleBuyNowConfirm() {
     if (!user) {
       setError('กรุณาเข้าสู่ระบบก่อน');
       return;
@@ -239,11 +331,6 @@ export default function AuctionDetail() {
     // Check if user has sufficient balance
     if (Number(currentBalance) < buyNowPrice) {
       setError(`ยอดเงินไม่เพียงพอ! คุณมี ฿${Number(currentBalance).toFixed(2)} แต่ต้องการ ฿${buyNowPrice.toFixed(2)}`);
-      alert(`ยอดเงินไม่เพียงพอ!\n\nคุณมี: ฿${Number(currentBalance).toFixed(2)}\nต้องการ: ฿${buyNowPrice.toFixed(2)}`);
-      return;
-    }
-    
-    if (!window.confirm(`คุณต้องการซื้อสินค้านี้ทันทีในราคา ฿${buyNowPrice.toFixed(2)} หรือไม่?\n\nยอดเงินของคุณ: ฿${Number(currentBalance).toFixed(2)}\nยอดเงินหลังซื้อ: ฿${(Number(currentBalance) - buyNowPrice).toFixed(2)}`)) {
       return;
     }
     
@@ -281,7 +368,7 @@ export default function AuctionDetail() {
       setIsWinner(true);
       checkPaymentTransaction();
       
-      alert('✅ ซื้อสินค้าสำเร็จ!\n\nคุณได้ซื้อสินค้านี้ในราคา ฿' + buyNowPrice.toFixed(2) + '\nกรุณาไปที่หน้า Payments เพื่อชำระเงิน');
+      alert('ซื้อสินค้าสำเร็จ!\n\nคุณได้ซื้อสินค้านี้ในราคา ฿' + buyNowPrice.toFixed(2) + '\nกรุณาไปที่หน้า Payments เพื่อชำระเงิน');
       
       // Redirect to payments page after a short delay
       setTimeout(() => {
@@ -291,9 +378,10 @@ export default function AuctionDetail() {
       console.error('Buy Now error:', e);
       const errorMessage = e.response?.data?.message || 'การซื้อล้มเหลว';
       setError(errorMessage);
-      alert('❌ ' + errorMessage);
+      alert(errorMessage);
     } finally {
       setBuyNowLoading(false);
+      setBuyNowModalOpen(false);
     }
   }
 
@@ -313,11 +401,11 @@ export default function AuctionDetail() {
   }
 
   return (
-    <div className="page">
+    <div className="page auction-detail-page">
       <div className="page-header">
         <div className="container">
           <div className="text-center">
-            <h1 className="page-title">🏆 {auction.title}</h1>
+            <h1 className="page-title">{auction.title}</h1>
             <p className="page-subtitle">รายละเอียดการประมูลและการเสนอราคา</p>
           </div>
         </div>
@@ -325,39 +413,68 @@ export default function AuctionDetail() {
 
       <div className="page-content">
         <div className="container">
-          {/* Product Image and Description Section */}
-          <div className="auction-hero-section mb-8">
+          {/* Product Image and Summary Section */}
+          <div className="auction-hero-section">
             <div className="auction-hero-grid">
               {/* Left Column - Image and Highest Bidder */}
               <div className="auction-left-column">
                 {/* Product Image */}
                 <div className="auction-image-container">
-                  {auction.image ? (
-                    <img 
-                      src={auction.image.startsWith('http') ? auction.image : `http://localhost:4000${auction.image}`}
-                      alt={auction.title}
-                      className="auction-main-image"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <div 
-                    className="auction-no-image"
-                    style={{ display: auction.image ? 'none' : 'flex' }}
-                  >
-                    <div className="no-image-content">
-                      <span className="no-image-icon">🖼️</span>
-                      <span className="no-image-text">No Image Available</span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const rawImages = Array.isArray(auction.images) ? auction.images : (auction.image ? [auction.image] : []);
+                    const images = rawImages.filter(Boolean);
+                    if (!images.length) {
+                      return (
+                        <div className="auction-no-image" style={{ display: 'flex' }}>
+                          <div className="no-image-content">
+                            <span className="no-image-text">No Image Available</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const current = images[Math.min(selectedImageIndex, images.length - 1)];
+                    const toSrc = (p) => (p.startsWith('http') ? p : `${BACKEND_ORIGIN}${p.startsWith('/') ? '' : '/'}${p}`);
+
+                    return (
+                      <div className="auction-image-gallery">
+                        <div className="auction-image-gallery__main">
+                          <img
+                            src={toSrc(current)}
+                            alt={auction.title}
+                            className="auction-main-image preview-image"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        {images.length > 1 && (
+                          <div className="auction-image-gallery__thumbs">
+                            {images.slice(0, 5).map((img, idx) => (
+                              <button
+                                key={`${img}-${idx}`}
+                                type="button"
+                                className={`auction-image-thumb ${idx === selectedImageIndex ? 'is-active' : ''}`}
+                                onClick={() => setSelectedImageIndex(idx)}
+                                title={`รูปที่ ${idx + 1}`}
+                              >
+                                <img src={toSrc(img)} alt={`Thumbnail ${idx + 1}`} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Highest Bidder - Under Image */}
                 <div className="auction-highest-bidder">
                   <div className="highest-bidder-header">
-                    <h3 className="highest-bidder-title">👑 ผู้เสนอราคาสูงสุด</h3>
+                    <h3 className="highest-bidder-title">
+                      <Users className="inline-block w-5 h-5 mr-2 text-gray-400" />
+                      ผู้เสนอราคาสูงสุด
+                    </h3>
                   </div>
                   <div className="highest-bidder-content">
                     {highest.username ? (
@@ -384,428 +501,535 @@ export default function AuctionDetail() {
                 </div>
               </div>
 
-              {/* Product Description */}
-              <div className="auction-description-container">
-                <div className="auction-description-header">
-                  <h2 className="auction-description-title">{auction.title}</h2>
-                  <div className="auction-type-badge">
-                    <span className={`type-badge ${auction.bid_type}`}>
-                      {auction.bid_type === 'increment' ? '📈 Increment Bidding' : '🔒 Sealed Bidding'}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="auction-description-content">
-                  <h3 className="description-label">คำอธิบายสินค้า</h3>
-                  <div className="description-text">
-                    {auction.description ? (
-                      <p>{auction.description}</p>
-                    ) : (
-                      <p className="no-description">ผู้ขายไม่ได้ให้คำอธิบายสินค้า</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Seller Information */}
-                <div className="auction-seller-info">
-                  <div className="seller-header">
-                    <div className="seller-icon">👤</div>
-                    <div className="seller-details">
-                      <h3 className="seller-label">ผู้ขาย</h3>
-                      <div className="seller-name">{auction.owner_username || 'ไม่ระบุ'}</div>
+              {/* Right Column - Minimal Summary & Bidding */}
+              <div className="auction-description-container auction-summary-card">
+                <div className="flex items-start justify-between mb-4 gap-3">
+                  <div>
+                    <h2 className="auction-description-title">{auction.title}</h2>
+                    <div className="mt-2 inline-flex items-center gap-2 text-sm text-gray-500">
+                      <Tag className="w-4 h-4" />
+                      <span>{auction.bid_type === 'increment' ? 'Increment bidding' : 'Sealed bidding'}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="auction-price-info">
-                  <div className="price-row">
-                    <span className="price-label">ราคาเริ่มต้น:</span>
-                    <span className="price-value">฿{Number(auction.start_price).toFixed(2)}</span>
+                {/* Current price + remaining time */}
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">ราคาปัจจุบัน</p>
+                    <p className="auction-price-main">
+                      ฿{Number(auction.current_price).toFixed(2)}
+                    </p>
                   </div>
-                  <div className="price-row">
-                    <span className="price-label">
-                      {auction.bid_type === 'increment' ? 'ราคาปัจจุบัน:' : 'ราคาเริ่มต้น:'}
-                    </span>
-                    <span className="price-value current-price">฿{Number(auction.current_price).toFixed(2)}</span>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <span>เวลาที่เหลือ</span>
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatRemaining(endsIn)}
+                    </div>
                   </div>
-                  {auction.bid_type === 'increment' && auction.minimum_increment && (
-                    <div className="price-row">
-                      <span className="price-label">บิดขั้นต่ำ:</span>
-                      <span className="price-value">฿{Number(auction.minimum_increment).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {auction.buy_now_price && (
-                    <div className="price-row">
-                      <span className="price-label">ราคาปิดประมูลด่วน:</span>
-                      <span className="price-value font-bold text-green-600">฿{Number(auction.buy_now_price).toFixed(2)}</span>
-                    </div>
-                  )}
                 </div>
 
-                {/* Buy Now Button - Show if buy_now_price exists and auction is active */}
+                {/* Buy now */}
                 {!ended && auction.buy_now_price && user && user.role !== 'admin' && user.id !== auction.user_id && (
-                  <div className="auction-buy-now-section mb-6">
-                    <div className="card bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300">
-                      <div className="card-body">
-                        <div className="flex items-center justify-between flex-wrap gap-4">
-                          <div className="flex-1">
-                            <h3 className="text-lg font-bold text-green-800 mb-2">⚡ ปิดประมูลด่วน</h3>
-                            <p className="text-green-700">
-                              ซื้อสินค้านี้ทันทีในราคา <span className="font-bold text-xl">฿{Number(auction.buy_now_price).toFixed(2)}</span>
-                            </p>
-                            <p className="text-sm text-green-600 mt-1">ไม่ต้องรอการประมูลจบ</p>
-                            {userBalance !== null && (
-                              <p className="text-sm text-gray-600 mt-2">
-                                ยอดเงินของคุณ: <span className={Number(userBalance) < Number(auction.buy_now_price) ? 'text-red-600 font-bold' : 'text-gray-700 font-semibold'}>฿{Number(userBalance).toFixed(2)}</span>
-                                {Number(userBalance) < Number(auction.buy_now_price) && (
-                                  <span className="text-red-600 ml-2">⚠️ ยอดเงินไม่เพียงพอ</span>
-                                )}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            onClick={handleBuyNow}
-                            disabled={buyNowLoading || ended || (userBalance !== null && Number(userBalance) < Number(auction.buy_now_price))}
-                            className="btn btn-primary btn-lg px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-lg shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
-                          >
-                            {buyNowLoading ? (
-                              <div className="loading">
-                                <div className="spinner"></div>
-                                <span>กำลังดำเนินการ...</span>
-                              </div>
-                            ) : (
-                              <>
-                                <span>⚡</span>
-                                <span>ซื้อทันที</span>
-                              </>
-                            )}
-                          </button>
+                  <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                          <Zap className="w-4 h-4 text-amber-500" />
+                          <span>ซื้อทันที</span>
                         </div>
+                        <p className="mt-1 text-sm text-gray-600">
+                          ฿{Number(auction.buy_now_price).toFixed(2)} • ปิดประมูลทันที
+                        </p>
+                        {userBalance !== null && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            ยอดเงินของคุณ:{' '}
+                            <span className={Number(userBalance) < Number(auction.buy_now_price) ? 'text-red-600 font-semibold' : 'text-gray-800 font-semibold'}>
+                              ฿{Number(userBalance).toFixed(2)}
+                            </span>
+                          </p>
+                        )}
                       </div>
+                      <button
+                        onClick={() => setBuyNowModalOpen(true)}
+                        disabled={buyNowLoading || ended || (userBalance !== null && Number(userBalance) < Number(auction.buy_now_price))}
+                        className="btn btn-bid-primary btn-sm whitespace-nowrap"
+                      >
+                        {buyNowLoading ? 'กำลังดำเนินการ...' : 'ซื้อทันที'}
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* Bidding Form - Moved up here */}
-                {user && user.role !== 'admin' && (
-                  <div className="auction-bidding-section">
-                    <div className="bidding-header">
-                      <div className="bidding-title-section">
-                        <div className="bidding-icon">💰</div>
-                        <div className="bidding-title-text">
-                          <span className="bidding-title-line">เสนอราคาของคุณ</span>
-                        </div>
-                      </div>
-                      
-                      <div className="bidding-status-section">
-                        <div className="status-icon">⏰</div>
-                        <div className="status-text">
-                          <span className="status-label">เวลาที่เหลือ:</span>
-                          <span className="status-value">
-                            {ended ? 'การประมูลจบแล้ว' : `${Math.max(0, Math.floor(endsIn / 1000))} วินาที`}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="bidding-action-section">
-                        <button 
-                          onClick={() => {
-                            const auctionInfoSection = document.getElementById('auction-info-section');
-                            if (auctionInfoSection) {
-                              auctionInfoSection.scrollIntoView({ 
-                                behavior: 'smooth',
-                                block: 'start'
-                              });
-                            }
-                          }}
-                          className="btn btn-outline detail-btn-inline"
-                        >
-                          📋 รายละเอียด
-                        </button>
-                      </div>
-                    </div>
-                    
-                <div className="bidding-form">
-                  <div className="form-group">
-                    <label className="form-label">
+                {/* Bid form */}
+                {user && user.role !== 'admin' && auction.user_id !== user.id && (
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       {auction.bid_type === 'increment' ? 'Bid Amount' : 'Maximum Bid'}
                     </label>
-                    <div className="bidding-input-group">
+                    <div className="flex gap-3">
                       <input
                         type="number"
                         value={bid}
                         onChange={(e) => setBid(e.target.value)}
                         placeholder={
-                          auction.bid_type === 'increment' 
+                          auction.bid_type === 'increment'
                             ? `Enter amount higher than ฿${Number(auction.current_price).toFixed(2)}`
                             : `Enter your maximum bid (min: ฿${Number(auction.start_price).toFixed(2)})`
                         }
                         min={auction.bid_type === 'increment' ? Number(auction.current_price) + 0.01 : Number(auction.start_price)}
                         step="0.01"
-                        className="form-input bidding-input"
+                        className="form-input flex-1"
                       />
-                      <button 
-                        onClick={placeBid} 
+                      <button
+                        onClick={openBidConfirm}
                         disabled={ended}
-                        className="btn btn-primary bidding-btn"
+                        className="btn btn-bid-primary"
                       >
                         {ended ? 'Auction Ended' : (auction.bid_type === 'sealed' ? 'Submit Bid' : 'Place Bid')}
                       </button>
                     </div>
-                    {error && <div className="form-error">{error}</div>}
+                    {error && <div className="form-error mt-2">{error}</div>}
                   </div>
-                  
-                </div>
+                )}
+
+                {user && auction.user_id === user.id && (
+                  <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                    <p className="font-medium text-gray-800">คุณเป็นผู้ขายของการประมูลนี้</p>
+                    <p className="mt-1">
+                      ผู้ขายไม่สามารถบิดการประมูลของตัวเองได้ ระบบจะใช้ราคาจากผู้เข้าร่วมประมูลคนอื่นเท่านั้น
+                    </p>
                   </div>
                 )}
 
                 {!user && (
-                  <div className="auction-login-prompt">
-                    <div className="login-prompt-content">
-                      <p className="login-text">กรุณาเข้าสู่ระบบเพื่อเสนอราคา</p>
-                      <a href="/login" className="btn btn-primary">เข้าสู่ระบบ</a>
-                    </div>
+                  <div className="mt-6 text-sm text-gray-600">
+                    กรุณาเข้าสู่ระบบเพื่อเสนอราคา
+                    <a href="/login" className="ml-2 underline text-primary-600">เข้าสู่ระบบ</a>
                   </div>
                 )}
 
                 {user && user.role === 'admin' && (
-                  <div className="auction-admin-notice">
-                    <div className="admin-notice-content">
-                      <div className="admin-notice-icon">⚙️</div>
-                      <div className="admin-notice-text">
-                        <h3 className="admin-notice-title">Admin Access</h3>
-                        <p className="admin-notice-description">
-                          As an admin, you cannot participate in auctions. You can only manage and monitor the system.
-                        </p>
-                      </div>
-                    </div>
+                  <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                    <p className="font-medium text-gray-800">Admin access</p>
+                    <p className="mt-1">
+                      คุณเป็นผู้ดูแลระบบ ไม่สามารถเข้าร่วมประมูลได้ หน้านี้สำหรับดูข้อมูลเท่านั้น
+                    </p>
                   </div>
                 )}
 
-
                 {auction.bid_type === 'sealed' && (
-                  <div className="auction-sealed-info">
-                    <div className="sealed-info-header">
-                      <h3 className="sealed-info-title">🔒 Sealed Bidding</h3>
-                    </div>
-                    <div className="sealed-info-content">
-                      <p className="sealed-description">
-                        Submit your maximum bid. Only the highest bidder will be revealed when the auction ends.
-                      </p>
-                      {highest.sealed && (
-                        <div className="sealed-status">
-                          <span>🔒</span>
-                          <span>Bids are hidden until auction ends</span>
-                        </div>
-                      )}
-                    </div>
+                  <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                    <p className="font-medium text-gray-800 mb-1">Sealed bidding</p>
+                    <p>ระบบจะเปิดเผยเฉพาะผู้ชนะเมื่อการประมูลสิ้นสุดลงเท่านั้น</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column - Auction Info */}
-            <div className="space-y-6">
-              {/* Auction Details */}
-              <div className="card" id="auction-info-section">
-                <div className="card-header">
-                  <h2 className="card-title">📋 Auction Information</h2>
-                </div>
-                <div className="card-body">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">End Time</label>
-                      <p className="text-lg">{new Date(auction.end_time).toLocaleString()}</p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Auction Status</label>
-                      <p className="text-lg">
-                        {ended ? (
-                          <span className="text-red-600 font-semibold">Ended</span>
-                        ) : (
-                          <span className="text-green-600 font-semibold">Active</span>
-                        )}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Time Remaining</label>
-                      <p className="text-lg">
-                        {ended ? (
-                          <span className="text-red-600">Auction has ended</span>
-                        ) : (
-                          <span className="text-green-600">
-                            {Math.max(0, Math.floor(endsIn / 1000))} seconds
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    
-                    {/* Winner Information */}
-                    {ended && winnerInfo && (
-                      <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg">
-                        <label className="text-sm font-medium text-gray-700 block mb-2">🏆 ผู้ชนะการประมูล</label>
-                        <div className="space-y-2">
-                          <p className="text-lg font-bold text-green-700">
-                            {winnerInfo.username}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            ราคาที่ชนะ: <span className="font-semibold text-green-600">฿{Number(winnerInfo.amount).toFixed(2)}</span>
-                          </p>
-                          {winnerInfo.isCurrentUser && (
-                            <p className="text-sm font-semibold text-green-600 mt-2">
-                              🎉 คุณคือผู้ชนะ!
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+          
+          {/* Tabs: รายละเอียด / ข้อมูลการประมูล / ประวัติ */}
+          <div className="auction-tabs">
+            <div className="auction-tabs-nav">
+              <button
+                type="button"
+                className={`auction-tab-button ${activeTab === 'details' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('details')}
+              >
+                <Info className="w-4 h-4 mr-2" />
+                รายละเอียดสินค้า
+              </button>
+              <button
+                type="button"
+                className={`auction-tab-button ${activeTab === 'info' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('info')}
+              >
+                <Tag className="w-4 h-4 mr-2" />
+                ข้อมูลการประมูล
+              </button>
+              <button
+                type="button"
+                className={`auction-tab-button ${activeTab === 'history' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('history')}
+              >
+                <Gavel className="w-4 h-4 mr-2" />
+                ประวัติการประมูล
+              </button>
             </div>
 
-            {/* Right Column - Bidding */}
-            <div className="space-y-6">
+            <div className="auction-tabs-body">
+              {activeTab === 'details' && (
+                <div className="space-y-6">
+                  <section>
+                    <h3 className="text-sm font-semibold text-gray-500 mb-1">คำอธิบายสินค้า</h3>
+                    {auction.description ? (
+                      <p className="text-gray-700 leading-relaxed">{auction.description}</p>
+                    ) : (
+                      <p className="text-gray-400 italic">ผู้ขายไม่ได้ให้คำอธิบายสินค้า</p>
+                    )}
+                  </section>
 
-
-
-              {/* Top Bidders / Sealed Info */}
-              {auction.bid_type === 'increment' ? (
-                <>
-                  {topBidders.length > 0 && (
-                    <div className="card">
-                      <div className="card-header">
-                        <h2 className="card-title">🏆 Top 5 Bidders</h2>
-                      </div>
-                      <div className="card-body">
-                        <div className="space-y-2">
-                          {topBidders.map((bidder, index) => (
-                            <div key={bidder.username} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                              <span className="font-medium">#{index + 1} {bidder.username}</span>
-                              <span className="font-bold text-primary">฿{Number(bidder.top_amount).toFixed(2)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                  <section className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center">
+                      <User className="w-4 h-4 text-gray-500" />
                     </div>
-                  )}
-
-                  <div className="card">
-                    <div className="card-header">
-                      <h2 className="card-title">📝 Recent Bids</h2>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">ผู้ขาย</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {auction.owner_username || 'ไม่ระบุ'}
+                      </p>
                     </div>
-                    <div className="card-body">
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {(auction.bids || []).map(bid => (
-                          <div key={bid.id} className="flex justify-between items-center p-2 border-b">
-                            <div>
-                              <span className="font-medium">{bid.username}</span>
-                              <span className="text-sm text-gray-500 ml-2">
-                                {new Date(bid.created_at).toLocaleString()}
-                              </span>
-                            </div>
-                            <span className="font-bold text-primary">฿{Number(bid.amount).toFixed(2)}</span>
-                          </div>
-                        ))}
-                        {(!auction.bids || auction.bids.length === 0) && (
-                          <p className="text-gray-500 text-center py-4">No bids yet</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="card">
-                  <div className="card-header">
-                    <h2 className="card-title">🔒 Sealed Bidding Information</h2>
-                  </div>
-                  <div className="card-body">
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">🔒</span>
-                        <div>
-                          <h4 className="font-semibold">Private Bidding</h4>
-                          <p className="text-sm text-gray-600">Your bid amount is confidential and will only be revealed when the auction ends.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">👤</span>
-                        <div>
-                          <h4 className="font-semibold">One Bid Per Person</h4>
-                          <p className="text-sm text-gray-600">You can only submit one bid per auction. Make it count!</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">🏆</span>
-                        <div>
-                          <h4 className="font-semibold">Highest Bid Wins</h4>
-                          <p className="text-sm text-gray-600">The person with the highest bid will win the auction when it ends.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  </section>
                 </div>
               )}
 
-              {/* Payment Section for Winner */}
-              {ended && isWinner && (
-                <div className="card">
-                  <div className="card-header">
-                    <h2 className="card-title">🎉 Congratulations! You Won This Auction</h2>
-                  </div>
-                  <div className="card-body">
-                    <div className="space-y-4">
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">🏆</span>
-                          <div>
-                            <h4 className="font-semibold text-green-800">You are the winner!</h4>
-                            <p className="text-sm text-green-700">
-                              You won this auction with a bid of ${Number(auction.current_price).toFixed(2)}
-                            </p>
-                          </div>
+              {activeTab === 'info' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <section className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <Clock className="w-3.5 h-3.5 text-gray-400" />
+                        <span>เวลาสิ้นสุด</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {new Date(auction.end_time).toLocaleString()}
+                      </p>
+                    </section>
+
+                    <section className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <Circle className="w-3.5 h-3.5 text-gray-400" />
+                        <span>สถานะการประมูล</span>
+                      </div>
+                      <p className="text-sm font-semibold">
+                        {ended ? (
+                          <span className="text-red-600">สิ้นสุดแล้ว</span>
+                        ) : (
+                          <span className="text-emerald-600">กำลังเปิดประมูล</span>
+                        )}
+                      </p>
+                    </section>
+
+                    <section className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <Tag className="w-3.5 h-3.5 text-gray-400" />
+                        <span>ราคาเริ่มต้น</span>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        ฿{Number(auction.start_price).toFixed(2)}
+                      </p>
+                    </section>
+
+                    {auction.bid_type === 'increment' && auction.minimum_increment && (
+                      <section className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <Tag className="w-3.5 h-3.5 text-gray-400" />
+                          <span>บิดขั้นต่ำ</span>
                         </div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          ฿{Number(auction.minimum_increment).toFixed(2)}
+                        </p>
+                      </section>
+                    )}
+
+                    {auction.buy_now_price && (
+                      <section className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <Zap className="w-3.5 h-3.5 text-gray-400" />
+                          <span>ราคาซื้อทันที</span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          ฿{Number(auction.buy_now_price).toFixed(2)}
+                        </p>
+                      </section>
+                    )}
+                  </div>
+
+                  {ended && winnerInfo && (
+                    <section className="mt-2 rounded-xl bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-semibold text-emerald-700 mb-1">ผู้ชนะการประมูล</p>
+                      <p className="text-sm font-bold text-emerald-900">{winnerInfo.username}</p>
+                      <p className="text-xs text-emerald-700 mt-1">
+                        ราคาที่ชนะ: ฿{Number(winnerInfo.amount).toFixed(2)}
+                      </p>
+                      {winnerInfo.isCurrentUser && (
+                        <p className="text-xs font-semibold text-emerald-700 mt-1">
+                          คุณคือผู้ชนะการประมูลนี้
+                        </p>
+                      )}
+                    </section>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'history' && (
+                <div className="space-y-6">
+                  {auction.bid_type === 'increment' ? (
+                    <>
+                      {topBidders.length > 0 && (
+                        <section>
+                          <h3 className="text-sm font-semibold text-gray-500 mb-2">Top 5 Bidders</h3>
+                          <div className="space-y-2">
+                            {topBidders.map((bidder, index) => (
+                              <div key={bidder.username} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                <span className="font-medium text-sm">#{index + 1} {bidder.username}</span>
+                                <span className="font-bold text-primary text-sm">฿{Number(bidder.top_amount).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+
+                      <section>
+                        <h3 className="text-sm font-semibold text-gray-500 mb-2">Recent Bids</h3>
+                        <div className="max-h-64 overflow-y-auto rounded-xl bg-white/50">
+                          {bidsForHistory.length > 0 ? (
+                            bidsForHistory.map((bid, index) => {
+                              const isHighest = highestBidAmount !== null && Number(bid.amount) === highestBidAmount;
+                              const displayName = maskBidUsername(bid.username, index);
+                              return (
+                                <div
+                                  key={bid.id}
+                                  className="flex items-center justify-between px-3 py-3.5 border-b border-gray-100 last:border-b-0"
+                                >
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium text-gray-900">
+                                        {displayName}
+                                      </span>
+                                      {isHighest && (
+                                        <span className="inline-flex items-center rounded-full bg-amber-900 text-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                                          Highest
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-gray-400 mt-0.5">
+                                      {new Date(bid.created_at).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm font-semibold text-gray-900">
+                                    ฿{Number(bid.amount).toFixed(2)}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="py-6 text-center text-sm text-gray-400">
+                              ยังไม่มีผู้เสนอราคาในขณะนี้
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    </>
+                  ) : (
+                    <>
+                      {auction.user_id !== user?.id && (
+                        <section>
+                          <h3 className="text-sm font-semibold text-gray-500 mb-2">Sealed bidding information</h3>
+                          <div className="space-y-3 text-sm text-gray-700">
+                            <p>การบิดจะถูกเก็บเป็นความลับจนกว่าการประมูลจะสิ้นสุดลง</p>
+                            <p>แต่ละผู้ใช้สามารถส่งบิดได้เพียงครั้งเดียวในแต่ละการประมูล</p>
+                            <p>ผู้ที่บิดสูงสุดจะเป็นผู้ชนะเมื่อสิ้นสุดการประมูล</p>
+                          </div>
+                        </section>
+                      )}
+
+                      {auction.user_id === user?.id && ownerBids.length > 0 && (
+                        <section>
+                          <h3 className="text-sm font-semibold text-gray-500 mb-2">ประวัติการบิด (มองเห็นเฉพาะผู้ขาย)</h3>
+                          <div className="max-h-64 overflow-y-auto rounded-xl bg-white/60">
+                            {ownerBids.map((bid) => (
+                              <div
+                                key={bid.id}
+                                className="flex items-center justify-between px-3 py-3.5 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {bid.username}
+                                  </span>
+                                  <span className="text-xs text-gray-400 mt-0.5">
+                                    {new Date(bid.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="text-sm font-semibold text-gray-900">
+                                  ฿{Number(bid.amount).toFixed(2)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </>
+                  )}
+
+                  {ended && isWinner && (
+                    <section className="space-y-3">
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-green-800 mb-1 text-sm">คุณคือผู้ชนะ!</h4>
+                        <p className="text-xs text-green-700">
+                          คุณชนะการประมูลนี้ด้วยราคา ฿{Number(auction.current_price).toFixed(2)}
+                        </p>
                       </div>
 
                       {!hasPaymentTransaction ? (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-blue-800 mb-2">Next Steps:</h4>
-                          <p className="text-sm text-blue-700 mb-4">
-                            Create a payment transaction to proceed with the purchase.
+                          <h4 className="font-semibold text-blue-800 mb-2 text-sm">ขั้นตอนถัดไป</h4>
+                          <p className="text-xs text-blue-700 mb-3">
+                            สร้างรายการการชำระเงินเพื่อดำเนินการซื้อให้เสร็จสมบูรณ์
                           </p>
                           <button
                             onClick={handleCreatePayment}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            className="btn btn-primary btn-sm"
                           >
-                            💳 Create Payment Transaction
+                            Create payment transaction
                           </button>
                         </div>
                       ) : (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-green-800 mb-2">Payment Transaction Created</h4>
-                          <p className="text-sm text-green-700 mb-4">
-                            Your payment transaction has been created. You can now proceed with payment.
+                          <h4 className="font-semibold text-green-800 mb-2 text-sm">สร้างรายการชำระเงินแล้ว</h4>
+                          <p className="text-xs text-green-700 mb-3">
+                            คุณสามารถไปที่หน้าการชำระเงินเพื่อดำเนินการต่อได้ทันที
                           </p>
                           <a
                             href="/payments"
-                            className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            className="btn btn-success btn-sm"
                           >
-                            💳 Go to Payments
+                            ไปที่หน้าชำระเงิน
                           </a>
                         </div>
                       )}
-                    </div>
-                  </div>
+                    </section>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Buy Now Confirmation Modal */}
+      {buyNowModalOpen && auction && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">ยืนยันการซื้อ (Confirm Purchase)</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setBuyNowModalOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="space-y-3 text-sm text-gray-700">
+                <p className="font-medium text-gray-900">
+                  คุณต้องการซื้อสินค้านี้ทันทีในราคา{' '}
+                  <span className="font-semibold">
+                    ฿{Number(auction.buy_now_price).toFixed(2)}
+                  </span>{' '}
+                  หรือไม่?
+                </p>
+                {userBalance !== null && (
+                  <>
+                    <p>
+                      ยอดเงินปัจจุบันของคุณ:{' '}
+                      <span className="font-semibold">
+                        ฿{Number(userBalance).toFixed(2)}
+                      </span>
+                    </p>
+                    <p>
+                      ยอดเงินหลังซื้อ:{' '}
+                      <span className="font-semibold">
+                        ฿{(Number(userBalance) - Number(auction.buy_now_price)).toFixed(2)}
+                      </span>
+                    </p>
+                  </>
+                )}
+                {userBalance === null && (
+                  <p className="text-xs text-gray-500">
+                    กำลังตรวจสอบยอดเงินของคุณ...
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setBuyNowModalOpen(false)}
+                disabled={buyNowLoading}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="btn btn-bid-primary"
+                onClick={handleBuyNowConfirm}
+                disabled={buyNowLoading}
+              >
+                {buyNowLoading ? 'กำลังดำเนินการ...' : 'ยืนยันการซื้อ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bid Confirmation Modal */}
+      {bidModalOpen && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">ยืนยันการบิด (Confirm Bid)</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setBidModalOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="space-y-3 text-sm text-gray-700">
+                <p className="font-medium text-gray-900">
+                  คุณต้องการบิดจำนวน{' '}
+                  <span className="font-semibold">
+                    ฿{Number(bid || 0).toFixed(2)}
+                  </span>{' '}
+                  สำหรับการประมูลนี้หรือไม่?
+                </p>
+                {auction.bid_type === 'sealed' && (
+                  <p className="text-xs text-gray-500">
+                    การบิดเป็นแบบ Sealed bidding ระบบจะไม่เปิดเผยราคาให้ผู้ใช้คนอื่นเห็นจนกว่าการประมูลจะสิ้นสุดลง
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setBidModalOpen(false)}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="btn btn-bid-primary"
+                onClick={placeBid}
+              >
+                ยืนยันการบิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

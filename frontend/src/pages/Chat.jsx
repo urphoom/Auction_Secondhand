@@ -317,7 +317,7 @@ export default function Chat() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">💬 Chat Support</h1>
+              <h1 className="page-title">Chat Support</h1>
               <p className="page-subtitle">Connect with support and community</p>
             </div>
           </div>
@@ -326,9 +326,7 @@ export default function Chat() {
           <div className="container">
             <div className="flex items-center justify-center min-h-[60vh]">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-4xl">🔒</span>
-                </div>
+                <div className="w-20 h-20 bg-gray-100 rounded-full mx-auto mb-6" />
                 <h2 className="text-2xl font-bold mb-4">Please Login</h2>
                 <p className="text-gray-600">You need to login to use the chat system</p>
               </div>
@@ -345,7 +343,7 @@ export default function Chat() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">💬 Chat Support</h1>
+              <h1 className="page-title">Chat Support</h1>
               <p className="page-subtitle">Connect with support and community</p>
             </div>
           </div>
@@ -370,7 +368,7 @@ export default function Chat() {
       <div className="page-header">
         <div className="container">
           <div className="text-center">
-            <h1 className="page-title">💬 Chat Support</h1>
+            <h1 className="page-title">แชท</h1>
             <p className="page-subtitle">Connect with support and community</p>
           </div>
         </div>
@@ -385,13 +383,12 @@ export default function Chat() {
               <div className="sidebar-header">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-bold text-gray-900">Chat Rooms</h3>
-                  <button
-                    onClick={() => setShowCreateRoom(!showCreateRoom)}
-                    className="btn btn-primary btn-sm"
-                  >
-                    <span>➕</span>
-                    <span>New Room</span>
-                  </button>
+                      <button
+                        onClick={() => setShowCreateRoom(!showCreateRoom)}
+                        className="btn btn-primary btn-sm"
+                      >
+                        <span>New Room</span>
+                      </button>
                 </div>
               </div>
 
@@ -424,7 +421,6 @@ export default function Chat() {
                       </div>
                       <div className="flex gap-3">
                         <button type="submit" className="btn btn-success flex-1">
-                          <span>✨</span>
                           <span>Create</span>
                         </button>
                         <button
@@ -432,7 +428,6 @@ export default function Chat() {
                           onClick={() => setShowCreateRoom(false)}
                           className="btn btn-secondary flex-1"
                         >
-                          <span>❌</span>
                           <span>Cancel</span>
                         </button>
                       </div>
@@ -443,39 +438,63 @@ export default function Chat() {
 
               {/* Modern Rooms List */}
               <div className="rooms-list">
-                {rooms.map(room => (
-                  <div
-                    key={room.id}
-                    className={`room-item ${selectedRoom?.id === room.id ? 'selected' : ''}`}
-                    onClick={() => selectRoom(room)}
-                  >
-                    <div className="room-header">
-                      <div className="room-name">{room.name || 'Chat Room'}</div>
-                      {room.lastMessage && (
-                        <div className="room-time">
-                          {new Date(room.lastMessage.created_at).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                {rooms.map((room) => {
+                  const hasUnread = room.unread_count > 0 || room.has_unread;
+                  const lastTime = room.lastMessage
+                    ? new Date(room.lastMessage.created_at).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : null;
+                  const avatarInitial = (room.name || room.lastMessage?.username || 'C')
+                    .charAt(0)
+                    .toUpperCase();
+
+                  return (
+                    <div
+                      key={room.id}
+                      className={`room-item ${selectedRoom?.id === room.id ? 'selected' : ''}`}
+                      onClick={() => selectRoom(room)}
+                    >
+                      <div className="room-main">
+                        <div className="room-avatar">
+                          <div className="avatar-circle">
+                            {avatarInitial}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="room-description">
-                      {room.lastMessage ? (
-                        <div className="last-message">
-                          <span className="last-message-sender">
-                            {room.lastMessage.username}:
-                          </span>
-                          <span className="last-message-content">
-                            {room.lastMessage.message || room.lastMessage.content || 'Sent an image'}
-                          </span>
+                        <div className="room-body">
+                          <div className="room-header">
+                            <div className="room-name">{room.name || 'Chat Room'}</div>
+                            {lastTime && (
+                              <div className="room-time">
+                                {lastTime}
+                              </div>
+                            )}
+                          </div>
+                          <div className="room-description">
+                            {room.lastMessage ? (
+                              <div className="last-message">
+                                <span className="last-message-sender">
+                                  {room.lastMessage.username}:
+                                </span>
+                                <span className="last-message-content">
+                                  {room.lastMessage.message || room.lastMessage.content || 'Sent an image'}
+                                </span>
+                              </div>
+                            ) : (
+                              room.description || 'No description'
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        room.description || 'No description'
-                      )}
+                        {hasUnread && (
+                          <div className="room-unread">
+                            <span className="room-unread-dot" />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -488,7 +507,7 @@ export default function Chat() {
                     <div className="chat-room-info">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                          <span className="text-lg">💬</span>
+                        <span className="text-lg">Chat</span>
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">
@@ -646,7 +665,7 @@ export default function Chat() {
               ) : (
                 <div className="chat-empty-state">
                   <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <span className="text-4xl">💬</span>
+                    <span className="text-4xl">Chat</span>
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">Select a Chat Room</h3>
                   <p className="text-gray-600">

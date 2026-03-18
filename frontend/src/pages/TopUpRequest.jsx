@@ -5,9 +5,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 const FILE_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
 
 const statusMeta = {
-  pending: { label: 'รอดำเนินการ', tagClass: 'admin-status-tag admin-status-tag--pending' },
-  approved: { label: 'อนุมัติแล้ว', tagClass: 'admin-status-tag admin-status-tag--approved' },
-  rejected: { label: 'ปฏิเสธ', tagClass: 'admin-status-tag admin-status-tag--rejected' }
+  pending: { label: 'กำลังตรวจสอบ', tagClass: 'topup-status topup-status--pending' },
+  approved: { label: 'อนุมัติแล้ว', tagClass: 'topup-status topup-status--approved' },
+  rejected: { label: 'ปฏิเสธ', tagClass: 'topup-status topup-status--rejected' }
 };
 
 export default function TopUpRequest() {
@@ -20,6 +20,8 @@ export default function TopUpRequest() {
   const [requests, setRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [listError, setListError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(3);
 
   useEffect(() => {
     loadRequests();
@@ -35,6 +37,7 @@ export default function TopUpRequest() {
       setListError('');
       const { data } = await api.get('/top-ups/me');
       setRequests(Array.isArray(data) ? data : []);
+      setPage(1);
     } catch (error) {
       console.error('Failed to load top-up requests:', error);
       setListError('ไม่สามารถโหลดประวัติคำขอเติมเงินได้');
@@ -48,6 +51,12 @@ export default function TopUpRequest() {
     return [...requests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [requests]);
 
+  const totalPages = Math.max(Math.ceil(sortedRequests.length / pageSize) || 1, 1);
+  const paginatedRequests = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sortedRequests.slice(start, start + pageSize);
+  }, [sortedRequests, page, pageSize]);
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (slipPreview) URL.revokeObjectURL(slipPreview);
@@ -59,6 +68,12 @@ export default function TopUpRequest() {
       setSlipFile(null);
       setSlipPreview('');
     }
+  };
+
+  const handlePageSizeChange = (event) => {
+    const value = Number(event.target.value);
+    setPageSize(value);
+    setPage(1);
   };
 
   const resetForm = () => {
@@ -111,7 +126,7 @@ export default function TopUpRequest() {
       <div className="page-header">
         <div className="container">
           <div className="text-center">
-            <h1 className="page-title">💸 เติมเงินเข้าบัญชี</h1>
+            <h1 className="page-title">เติมเงินเข้าบัญชี</h1>
             <p className="page-subtitle">อัปโหลดสลิปโอนเงินเพื่อแจ้งทีมงาน และติดตามสถานะคำขอในที่เดียว</p>
           </div>
         </div>
@@ -204,62 +219,100 @@ export default function TopUpRequest() {
                   </div>
                 ) : (
                   <div className="topup-history">
-                    {sortedRequests.map((request) => {
-                      const status = statusMeta[request.status] || statusMeta.pending;
-                      return (
-                        <div key={request.id} className="topup-history-item">
-                          <div className="topup-history-row">
-                            <div>
-                              <h3>คำขอ #{request.id}</h3>
-                              <p className="topup-history-date">
-                                ส่งเมื่อ {new Date(request.created_at).toLocaleString('th-TH')}
-                              </p>
-                            </div>
-                            <span className={status.tagClass}>{status.label}</span>
-                          </div>
-
-                          <div className="topup-history-grid">
-                            <div>
-                              <span className="topup-history-label">จำนวนเงิน</span>
-                              <p className="topup-history-value">฿{Number(request.amount).toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <span className="topup-history-label">สลิปโอนเงิน</span>
-                              <div className="topup-history-image">
-                                <img
-                                  src={`${FILE_BASE_URL}${request.slip_url}`}
-                                  alt={`สลิปคำขอ #${request.id}`}
-                                  className="topup-thumbnail"
-                                />
-                                <a
-                                  href={`${FILE_BASE_URL}${request.slip_url}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="topup-link"
-                                >
-                                  เปิดดูขนาดเต็ม
-                                </a>
-                              </div>
-                            </div>
-                          </div>
-
-                          {request.note && (
-                            <div className="topup-history-note">
-                              <span>{request.status === 'pending' ? 'หมายเหตุที่คุณแจ้ง' : 'หมายเหตุจากทีมงาน'}</span>
-                              <p>{request.note}</p>
-                            </div>
-                          )}
-
-                          {request.processed_by_username && request.processed_at && (
-                            <div className="topup-history-processed">
-                              <span>
-                                ดำเนินการโดย {request.processed_by_username} เมื่อ {new Date(request.processed_at).toLocaleString('th-TH')}
-                              </span>
-                            </div>
-                          )}
+                    <div className="topup-history-controls">
+                      <span className="topup-summary">รวมทั้งหมด {sortedRequests.length} รายการ</span>
+                      <div className="topup-page-size">
+                        <label htmlFor="topup-page-size">แสดงต่อหน้า</label>
+                        <select
+                          id="topup-page-size"
+                          value={pageSize}
+                          onChange={handlePageSizeChange}
+                        >
+                          {[3, 5, 10, 20].map((size) => (
+                            <option key={size} value={size}>
+                              {size}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                {paginatedRequests.map((request) => {
+                  const status = statusMeta[request.status] || statusMeta.pending;
+                  return (
+                    <div key={request.id} className="topup-history-card">
+                      <div className="topup-history-header">
+                        <div className="topup-history-title">
+                          <h3>คำขอ #{request.id}</h3>
+                          <p className="topup-history-date">
+                            ส่งเมื่อ {new Date(request.created_at).toLocaleString('th-TH')}
+                          </p>
                         </div>
-                      );
-                    })}
+                        <span className={`topup-history-status ${status.tagClass}`}>{status.label}</span>
+                      </div>
+
+                      <div className="topup-history-body">
+                        <div>
+                          <span className="topup-history-label">จำนวนเงิน</span>
+                          <p className="topup-history-value">฿{Number(request.amount).toFixed(2)}</p>
+                        </div>
+                        <div className="topup-history-slip">
+                          <span className="topup-history-label">สลิปโอนเงิน</span>
+                          <img
+                            src={`${FILE_BASE_URL}${request.slip_url}`}
+                            alt={`สลิปคำขอ #${request.id}`}
+                          />
+                          <a
+                            href={`${FILE_BASE_URL}${request.slip_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="topup-link"
+                          >
+                            เปิดดูขนาดเต็ม
+                          </a>
+                        </div>
+                      </div>
+
+                      {request.note && (
+                        <div className="topup-history-note">
+                          <span>{request.status === 'pending' ? 'หมายเหตุที่คุณแจ้ง' : 'หมายเหตุจากทีมงาน'}</span>
+                          <p>{request.note}</p>
+                        </div>
+                      )}
+
+                      {request.processed_by_username && request.processed_at && (
+                        <div className="topup-history-processed">
+                          <span>
+                            ดำเนินการโดย {request.processed_by_username} เมื่อ{' '}
+                            {new Date(request.processed_at).toLocaleString('th-TH')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                    {totalPages > 1 && (
+                      <div className="topup-pagination">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={page <= 1}
+                          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                        >
+                          ← ก่อนหน้า
+                        </button>
+                        <span className="topup-pagination-info">
+                          หน้า {page} จาก {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={page >= totalPages}
+                          onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                        >
+                          ถัดไป →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

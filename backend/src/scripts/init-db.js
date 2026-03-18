@@ -17,16 +17,14 @@ async function main() {
   // In case the table exists without balance column (older deployments)
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS balance DECIMAL(12,2) NOT NULL DEFAULT 0.00");
   
-  // Add bid type columns to existing auctions table
-  await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS bid_type ENUM('increment', 'sealed') NOT NULL DEFAULT 'increment'");
-  await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS minimum_increment DECIMAL(10,2) DEFAULT 1.00");
-  await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS buy_now_price DECIMAL(10,2) DEFAULT NULL");
+  // Auctions (create first; then apply ALTERs for older deployments)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS auctions (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       description TEXT,
       image VARCHAR(255),
+      images JSON NULL,
       start_price DECIMAL(10,2) NOT NULL,
       current_price DECIMAL(10,2) NOT NULL,
       end_time DATETIME NOT NULL,
@@ -37,6 +35,30 @@ async function main() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB;
   `);
+
+  // Add/patch columns for older deployments (ignore if table/column already exists or engine doesn't support IF NOT EXISTS)
+  try { await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS bid_type ENUM('increment', 'sealed') NOT NULL DEFAULT 'increment'"); } catch {}
+  try { await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS minimum_increment DECIMAL(10,2) DEFAULT 1.00"); } catch {}
+  try { await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS buy_now_price DECIMAL(10,2) DEFAULT NULL"); } catch {}
+  try { await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS images JSON NULL"); } catch {}
+  // New columns: status, winner_id, and indexes/constraints
+  try { await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS status ENUM('active','ended','cancelled') NOT NULL DEFAULT 'active' AFTER end_time"); } catch {}
+  try { await pool.query("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS winner_id INT NULL AFTER status"); } catch {}
+  // Indexes for auctions
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_auctions_status ON auctions(status)"); } catch {}
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_auctions_user_id ON auctions(user_id)"); } catch {}
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_auctions_end_time ON auctions(end_time)"); } catch {}
+  // Foreign key to users for winner_id (ignore if already exists)
+  try {
+    await pool.query(`
+      ALTER TABLE auctions
+      ADD CONSTRAINT fk_auctions_winner
+      FOREIGN KEY (winner_id) REFERENCES users(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+    `);
+  } catch (err) {
+    // Likely already exists
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bids (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -50,6 +72,33 @@ async function main() {
       INDEX (user_id)
     ) ENGINE=InnoDB;
   `);
+
+  // Reviews table for buyer reviewing seller after completed payment
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      auction_id INT UNSIGNED NOT NULL,
+      seller_id INT UNSIGNED NOT NULL,
+      buyer_id INT UNSIGNED NOT NULL,
+      rating TINYINT UNSIGNED NOT NULL,
+      comment TEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_review_auction_buyer (auction_id, buyer_id),
+      CONSTRAINT fk_reviews_auction FOREIGN KEY (auction_id) REFERENCES auctions(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_reviews_seller FOREIGN KEY (seller_id) REFERENCES users(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+      CONSTRAINT fk_reviews_buyer FOREIGN KEY (buyer_id) REFERENCES users(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+      CONSTRAINT chk_reviews_rating CHECK (rating BETWEEN 1 AND 5)
+    ) ENGINE=InnoDB;
+  `);
+  // Helpful indexes for reviews
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_auction_id ON reviews(auction_id)"); } catch {}
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_seller_id ON reviews(seller_id)"); } catch {}
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_buyer_id ON reviews(buyer_id)"); } catch {}
 
   // Chat rooms
   await pool.query(`
@@ -151,6 +200,62 @@ async function main() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS top_up_request_logs (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      request_id INT UNSIGNED NOT NULL,
+      actor_id INT UNSIGNED NULL,
+      actor_type ENUM('user', 'admin', 'system') NOT NULL,
+      action VARCHAR(100) NOT NULL,
+      details TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (request_id) REFERENCES top_up_requests(id) ON DELETE CASCADE,
+      FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX (request_id),
+      INDEX (created_at)
+    ) ENGINE=InnoDB;
+  `);
+
+  // Withdrawals
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS withdrawal_requests (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id INT UNSIGNED NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      fee DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      payout_amount DECIMAL(12,2) NOT NULL,
+      bank_name VARCHAR(100) NOT NULL,
+      account_number VARCHAR(50) NOT NULL,
+      status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+      note TEXT,
+      slip_url VARCHAR(255),
+      processed_by INT UNSIGNED NULL,
+      processed_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX (status),
+      INDEX (created_at),
+      INDEX (user_id)
+    ) ENGINE=InnoDB;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS withdrawal_request_logs (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      request_id INT UNSIGNED NOT NULL,
+      actor_id INT UNSIGNED NULL,
+      actor_type ENUM('user', 'admin', 'system') NOT NULL,
+      action VARCHAR(100) NOT NULL,
+      details TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (request_id) REFERENCES withdrawal_requests(id) ON DELETE CASCADE,
+      FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX (request_id),
+      INDEX (created_at)
+    ) ENGINE=InnoDB;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_audit_logs (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       admin_id INT UNSIGNED NOT NULL,
@@ -170,10 +275,11 @@ async function main() {
     CREATE TABLE IF NOT EXISTS notifications (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
-      auction_id INT NOT NULL,
-      type ENUM('auction_won', 'auction_ended', 'outbid', 'bid_refunded') NOT NULL,
+      auction_id INT UNSIGNED NULL,
+      type ENUM('auction_won', 'auction_ended', 'outbid', 'bid_refunded', 'topup_created', 'topup_approved', 'topup_rejected', 'withdrawal_created', 'withdrawal_approved', 'withdrawal_rejected') NOT NULL,
       title VARCHAR(255) NOT NULL,
       message TEXT NOT NULL,
+      context JSON NULL,
       is_read BOOLEAN NOT NULL DEFAULT FALSE,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -183,8 +289,36 @@ async function main() {
       INDEX (created_at)
     ) ENGINE=InnoDB;
   `);
-  // Add bid_refunded type to existing notifications table if it doesn't exist
-  await pool.query("ALTER TABLE notifications MODIFY COLUMN type ENUM('auction_won', 'auction_ended', 'outbid', 'bid_refunded') NOT NULL");
+  try {
+    await pool.query("ALTER TABLE notifications MODIFY COLUMN auction_id INT UNSIGNED NULL");
+  } catch (err) {
+    if (err.code !== 'ER_BAD_FIELD_ERROR') console.warn('Could not alter notifications auction_id:', err.message);
+  }
+  try {
+    await pool.query("ALTER TABLE notifications MODIFY COLUMN type ENUM('auction_won', 'auction_ended', 'outbid', 'bid_refunded', 'topup_created', 'topup_approved', 'topup_rejected', 'withdrawal_created', 'withdrawal_approved', 'withdrawal_rejected') NOT NULL");
+  } catch (err) {
+    console.warn('Could not update notifications type enum:', err.message);
+  }
+  try {
+    await pool.query("ALTER TABLE notifications ADD COLUMN context JSON NULL");
+  } catch (err) {
+    if (!err.message?.includes('Duplicate column name')) console.warn('Could not add notifications context column:', err.message);
+  }
+  try {
+    await pool.query("ALTER TABLE shipping_info ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(100) DEFAULT NULL AFTER transaction_id");
+  } catch (err) {
+    if (!['ER_BAD_TABLE_ERROR', 'ER_DUP_FIELDNAME'].includes(err.code)) console.warn('Could not add recipient_name to shipping_info:', err.message);
+  }
+  try {
+    await pool.query("ALTER TABLE shipping_info ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(20) DEFAULT NULL AFTER recipient_name");
+  } catch (err) {
+    if (!['ER_BAD_TABLE_ERROR', 'ER_DUP_FIELDNAME'].includes(err.code)) console.warn('Could not add recipient_phone to shipping_info:', err.message);
+  }
+  try {
+    await pool.query("ALTER TABLE shipping_info ADD UNIQUE INDEX IF NOT EXISTS uniq_shipping_transaction (transaction_id)");
+  } catch (err) {
+    if (!['ER_BAD_TABLE_ERROR', 'ER_DUP_KEYNAME'].includes(err.code)) console.warn('Could not add unique index to shipping_info:', err.message);
+  }
   // eslint-disable-next-line no-console
   console.log('Database initialized');
   process.exit(0);

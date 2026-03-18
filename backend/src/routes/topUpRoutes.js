@@ -5,6 +5,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { authRequired } from '../middleware/auth.js';
 import { getPool } from '../utils/db.js';
+import { recordTopUpLog } from '../utils/topUpLogs.js';
+import { NotificationService } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -61,6 +63,18 @@ router.post('/', authRequired, upload.single('slip'), async (req, res) => {
       [req.user.id, numericAmount, slipUrl, trimmedNote || null]
     );
 
+    await recordTopUpLog(pool, {
+      requestId: result.insertId,
+      actorId: req.user.id,
+      actorType: 'user',
+      action: 'created',
+      details: {
+        amount: numericAmount,
+        slipUrl,
+        note: trimmedNote || null
+      }
+    });
+
     const [rows] = await pool.query(
       `SELECT tur.*, proc.username AS processed_by_username
        FROM top_up_requests tur
@@ -68,6 +82,18 @@ router.post('/', authRequired, upload.single('slip'), async (req, res) => {
        WHERE tur.id = ?`,
       [result.insertId]
     );
+
+    const io = req.app.get('io');
+    await NotificationService.createNotification({
+      userId: req.user.id,
+      type: 'topup_created',
+      title: 'ส่งคำขอเติมเงินเรียบร้อย',
+      message: `เรารับคำขอเติมเงินจำนวน ฿${numericAmount.toFixed(2)} แล้ว กรุณารอเจ้าหน้าที่ตรวจสอบ`,
+      context: {
+        requestId: result.insertId,
+        amount: numericAmount
+      }
+    }, io);
 
     res.status(201).json(rows[0]);
   } catch (error) {

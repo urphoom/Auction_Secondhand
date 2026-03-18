@@ -74,7 +74,7 @@ export default function Home() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">🏠 Auction House</h1>
+              <h1 className="page-title">Auction House</h1>
               <p className="page-subtitle">Loading your dashboard...</p>
             </div>
           </div>
@@ -102,68 +102,32 @@ export default function Home() {
       <div className="page-header">
         <div className="container">
           <div className="text-center">
-            <h1 className="page-title">🏠 Auction House</h1>
-            <p className="page-subtitle">ค้นพบการประมูลที่น่าสนใจและเสนอราคา</p>
+            <h1 className="page-title home-hero-title">Auction House</h1>
+            <p className="page-subtitle home-hero-subtitle">
+              แกลเลอรีการประมูลในสไตล์มินิมอลสำหรับสินค้าที่คัดสรรมาแล้ว
+            </p>
           </div>
         </div>
       </div>
 
       <div className="page-content">
         <div className="container">
-          {/* Modern User Dashboard */}
-          {currentUser && (
+          {/* Modern Auction Summary Dashboard */}
+          {currentUser && auctions.length > 0 && (
             <div className="mb-8">
               <div className="card">
                 <div className="card-content">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">👤</span>
-                      </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">ยินดีต้อนรับกลับ!</h3>
-                        <p className="text-gray-600">{currentUser.username}</p>
+                        <h3 className="font-semibold text-gray-900">ภาพรวมการประมูล</h3>
+                        <p className="text-primary-600 font-semibold">{auctions.length} รายการ</p>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-success-100 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">💰</span>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">ยอดเงินคงเหลือ</h3>
-                        <p className="text-success-600 font-semibold">฿{Number(balance || 0).toFixed(2)}</p>
-                      </div>
-                    </div>
                     
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-warning-100 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">🏆</span>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">การประมูลที่กำลังดำเนิน</h3>
-                        <p className="text-warning-600 font-semibold">{auctions.length} รายการ</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Modern Platform Fee Notice */}
-          {currentUser && (
-            <div className="mb-8">
-              <div className="bg-primary-50 border border-primary-200 rounded-xl p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl">💡</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-primary-800 mb-2">ข้อมูลค่าธรรมเนียม</h3>
-                    <p className="text-primary-700">
-                      เราเก็บค่าธรรมเนียม 5% จากทุกการประมูลที่สำเร็จ ซึ่งช่วยให้เราสามารถดูแลและพัฒนาบริการได้
-                    </p>
+                    
+                    
                   </div>
                 </div>
               </div>
@@ -171,20 +135,15 @@ export default function Home() {
           )}
 
           {/* Modern Active Auctions Section */}
-          <div>
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">🔥 การประมูลที่กำลังดำเนิน</h2>
-              <p className="text-gray-600">เสนอราคาสินค้าที่น่าสนใจและคว้าของดีราคาถูก</p>
+          <div className="home-auction-section">
+            <div className="home-auction-section-header">
+              <h2 className="home-auction-section-title">การประมูลที่กำลังดำเนิน</h2>
+              <p className="home-auction-section-desc">
+                เรียกดูสินค้าที่ถูกคัดเลือกอย่างพิถีพิถันและเริ่มการประมูลอย่างมั่นใจ
+              </p>
             </div>
 
-            {error && (
-              <div className="alert alert-error mb-6">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">⚠️</span>
-                  <span>{error}</span>
-                </div>
-              </div>
-            )}
+            {error && <div className="alert alert-error mb-6">{error}</div>}
 
             {auctions.length === 0 ? (
               <div className="text-center py-16">
@@ -195,7 +154,7 @@ export default function Home() {
                 <p className="text-gray-600 mb-6">
                   ขณะนี้ยังไม่มีการประมูลที่กำลังดำเนินอยู่ กรุณาติดตามโอกาสใหม่ๆ ในภายหลัง!
                 </p>
-                {currentUser && (
+                {currentUser && currentUser.role !== 'admin' && (
                   <Link to="/add" className="btn btn-primary">
                     <span>➕</span>
                     <span>สร้างการประมูล</span>
@@ -212,45 +171,41 @@ export default function Home() {
           </div>
 
           {/* Modern Support Section */}
-          <div className="mt-16">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">💬 การสนับสนุนและชุมชน</h2>
-              <p className="text-gray-600">รับความช่วยเหลือและเชื่อมต่อกับผู้ใช้คนอื่น</p>
+          <div className="home-support-section mt-20">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-1">การสนับสนุนและชุมชน</h2>
+              <p className="text-gray-500 text-sm">รับความช่วยเหลือและเชื่อมต่อกับผู้ใช้คนอื่น</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="card text-center">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="card text-center home-support-card">
                 <div className="card-content">
-                  <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl">🎧</span>
-                  </div>
+                  <div className="w-16 h-16 bg-primary-100 rounded-full mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">การสนับสนุน 24/7</h3>
                   <p className="text-gray-600 text-sm mb-4">ทีมสนับสนุนของเราพร้อมช่วยเหลือคุณตลอดเวลา</p>
                   {currentUser ? (
-                    <Link to="/chat" className="btn btn-primary">
+                    <Link to="/chat" className="btn btn-secondary btn-sm">
                       เข้าสู่แชท
                     </Link>
                   ) : (
-                    <Link to="/login" className="btn btn-primary">
+                    <Link to="/login" className="btn btn-secondary btn-sm">
                       เข้าสู่ระบบก่อน
                     </Link>
                   )}
                 </div>
               </div>
               
-              <div className="card text-center">
+              <div className="card text-center home-support-card">
                 <div className="card-content">
-                  <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl">👥</span>
-                  </div>
+                  <div className="w-16 h-16 bg-success-100 rounded-full mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">ชุมชนผู้ใช้</h3>
                   <p className="text-gray-600 text-sm mb-4">เชื่อมต่อและแบ่งปันประสบการณ์กับผู้ใช้คนอื่น</p>
                   {currentUser ? (
-                    <Link to="/chat" className="btn btn-secondary">
+                    <Link to="/chat" className="btn btn-secondary btn-sm">
                       เข้าร่วมชุมชน
                     </Link>
                   ) : (
-                    <Link to="/login" className="btn btn-secondary">
+                    <Link to="/login" className="btn btn-secondary btn-sm">
                       เข้าสู่ระบบก่อน
                     </Link>
                   )}

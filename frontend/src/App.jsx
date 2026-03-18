@@ -17,6 +17,8 @@ import AdminAuctions from './pages/admin/AdminAuctions.jsx';
 import AdminTopUps from './pages/admin/AdminTopUps.jsx';
 import AdminUsers from './pages/admin/AdminUsers.jsx';
 import TopUpRequest from './pages/TopUpRequest.jsx';
+import Withdraw from './pages/Withdraw.jsx';
+import AdminWithdrawals from './pages/admin/AdminWithdrawals.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 export default function App() {
@@ -65,7 +67,26 @@ export default function App() {
           <Route path="/chat" element={user ? <Chat /> : <Navigate to="/login" />} />
           <Route path="/notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
           <Route path="/payments" element={user ? <Payment /> : <Navigate to="/login" />} />
-          <Route path="/orders" element={user ? <OrderManagement /> : <Navigate to="/login" />} />
+          <Route
+            path="/withdraw"
+            element={
+              user
+                ? user.role !== 'admin'
+                  ? <Withdraw />
+                  : <Navigate to="/admin/dashboard" replace />
+                : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              user
+                ? user.role !== 'admin'
+                  ? <OrderManagement />
+                  : <Navigate to="/admin/dashboard" replace />
+                : <Navigate to="/login" />
+            }
+          />
           <Route path="/top-up" element={user ? <TopUpRequest /> : <Navigate to="/login" />} />
 
           <Route path="/admin/*" element={<AdminLayout />}>
@@ -73,6 +94,7 @@ export default function App() {
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="auctions" element={<AdminAuctions />} />
             <Route path="top-ups" element={<AdminTopUps />} />
+            <Route path="withdrawals" element={<AdminWithdrawals />} />
             <Route path="users" element={<AdminUsers />} />
           </Route>
         </Routes>

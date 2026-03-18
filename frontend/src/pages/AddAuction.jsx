@@ -1,20 +1,25 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.js';
+import { BadgePercent, Gavel, Lock, Image as ImageIcon } from 'lucide-react';
+
+const MAX_IMAGES = 5;
 
 export default function AddAuction() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [startPrice, setStartPrice] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [image, setImage] = useState(null);
+  const [images, setImages] = useState([]);
   const [bidType, setBidType] = useState('increment');
   const [minimumIncrement, setMinimumIncrement] = useState('1.00');
   const [buyNowPrice, setBuyNowPrice] = useState('');
   const [message, setMessage] = useState('');
-  const [preview, setPreview] = useState('');
+  const [previews, setPreviews] = useState([]);
+  const [selectedPreviewIndex, setSelectedPreviewIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const validateForm = () => {
@@ -44,8 +49,10 @@ export default function AddAuction() {
       }
     }
     
-    if (!image) {
-      newErrors.image = 'ต้องอัพโหลดรูปสินค้า';
+    if (!images.length) {
+      newErrors.image = 'ต้องอัพโหลดรูปสินค้าอย่างน้อย 1 รูป';
+    } else if (images.length > MAX_IMAGES) {
+      newErrors.image = `อัพโหลดได้ไม่เกิน ${MAX_IMAGES} รูป`;
     }
     
     // Validate buy now price if provided
@@ -70,6 +77,17 @@ export default function AddAuction() {
       return;
     }
     
+    // เปิด modal ยืนยันก่อนสร้างการประมูล
+    setConfirmModalOpen(true);
+  }
+
+  async function handleConfirmCreate() {
+    if (!validateForm()) {
+      setMessage('กรุณาแก้ไขข้อผิดพลาดด้านล่าง');
+      setConfirmModalOpen(false);
+      return;
+    }
+
     setLoading(true);
     setMessage('');
     
@@ -85,7 +103,9 @@ export default function AddAuction() {
     if (buyNowPrice && String(buyNowPrice).trim() !== '') {
       form.append('buy_now_price', buyNowPrice);
     }
-    if (image) form.append('image', image);
+    images.slice(0, MAX_IMAGES).forEach((file) => {
+      form.append('images', file);
+    });
     
     try {
       await api.post('/auctions', form, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -96,8 +116,10 @@ export default function AddAuction() {
       setStartPrice('');
       setEndTime('');
       setBuyNowPrice('');
-      setImage(null);
-      setPreview('');
+      setImages([]);
+      previews.forEach((url) => URL.revokeObjectURL(url));
+      setPreviews([]);
+      setSelectedPreviewIndex(0);
       setErrors({});
       
       // Redirect to home after success
@@ -114,20 +136,48 @@ export default function AddAuction() {
       }
     } finally {
       setLoading(false);
+      setConfirmModalOpen(false);
     }
   }
 
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0] || null;
-    setImage(file);
-    if (file) {
-      setPreview(URL.createObjectURL(file));
-      if (errors.image) {
-        setErrors({ ...errors, image: '' });
-      }
-    } else {
-      setPreview('');
-    }
+  const handleImagesChange = (e) => {
+    const fileList = Array.from(e.target.files || []);
+    // clear input so selecting same file again still triggers change
+    e.target.value = '';
+
+    if (!fileList.length) return;
+
+    const combined = [...images, ...fileList].slice(0, MAX_IMAGES);
+    const nextPreviews = combined.map((file, idx) => {
+      const existingIndex = images.indexOf(file);
+      if (existingIndex >= 0 && previews[existingIndex]) return previews[existingIndex];
+      return URL.createObjectURL(file);
+    });
+
+    // revoke previews that are no longer used
+    previews.forEach((url) => {
+      if (!nextPreviews.includes(url)) URL.revokeObjectURL(url);
+    });
+
+    setImages(combined);
+    setPreviews(nextPreviews);
+    if (errors.image) setErrors({ ...errors, image: '' });
+    if (selectedPreviewIndex >= combined.length) setSelectedPreviewIndex(0);
+  };
+
+  const removeImageAt = (index) => {
+    const nextImages = images.filter((_, i) => i !== index);
+    const removedPreview = previews[index];
+    const nextPreviews = previews.filter((_, i) => i !== index);
+    if (removedPreview) URL.revokeObjectURL(removedPreview);
+    setImages(nextImages);
+    setPreviews(nextPreviews);
+    setSelectedPreviewIndex((prev) => {
+      if (!nextImages.length) return 0;
+      if (index === prev) return Math.max(0, prev - 1);
+      if (index < prev) return prev - 1;
+      return prev;
+    });
   };
 
   const getMinDateTime = () => {
@@ -141,14 +191,10 @@ export default function AddAuction() {
       <div className="page-header">
         <div className="container">
           <div className="text-center">
-            <h1 className="page-title">🏆 สร้างการประมูลใหม่</h1>
-            <p className="page-subtitle">ลงขายสินค้าของคุณและเริ่มรับรายได้จากการเสนอราคา</p>
-            <div className="mt-4 inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2">
-              <span className="text-yellow-600">💰</span>
-              <span className="text-sm text-yellow-800 font-medium">
-                ค่าธรรมเนียมเว็บไซต์: 5% ของราคาขายสุดท้าย
-              </span>
-            </div>
+            <h1 className="page-title">สร้างการประมูลใหม่</h1>
+            <p className="page-subtitle">
+              กรอกข้อมูลสินค้าของคุณอย่างละเอียดเพื่อให้ผู้ประมูลตัดสินใจได้ง่ายขึ้น
+            </p>
           </div>
         </div>
       </div>
@@ -156,14 +202,11 @@ export default function AddAuction() {
       <div className="page-content">
         <div className="container">
           <div className="max-w-5xl mx-auto">
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-8 add-auction-form">
               {/* Basic Information */}
               <div className="card">
                 <div className="card-header">
-                  <h2 className="card-title flex items-center gap-2">
-                    <span>📝</span>
-                    <span>ข้อมูลพื้นฐาน</span>
-                  </h2>
+                  <h2 className="card-title">ข้อมูลพื้นฐาน</h2>
                 </div>
                 <div className="card-body">
                   <div className="space-y-6">
@@ -215,10 +258,7 @@ export default function AddAuction() {
               {/* Pricing & Duration */}
               <div className="card">
                 <div className="card-header">
-                  <h2 className="card-title flex items-center gap-2">
-                    <span>💰</span>
-                    <span>ราคาและระยะเวลา</span>
-                  </h2>
+                  <h2 className="card-title">ราคาและระยะเวลา</h2>
                 </div>
                 <div className="card-body">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -277,10 +317,7 @@ export default function AddAuction() {
               {/* Bidding Type */}
               <div className="card">
                 <div className="card-header">
-                  <h2 className="card-title flex items-center gap-2">
-                    <span>🎯</span>
-                    <span>ประเภทการเสนอราคา</span>
-                  </h2>
+                  <h2 className="card-title">ประเภทการเสนอราคา</h2>
                 </div>
                 <div className="card-body">
                   <div className="bid-type-selection">
@@ -298,7 +335,7 @@ export default function AddAuction() {
                         />
                         <label htmlFor="increment" className="bid-type-label">
                           <div className="bid-type-header">
-                            <span className="bid-type-icon">📈</span>
+                            <span className="bid-type-icon" />
                             <span className="bid-type-title">การเสนอราคาแบบเพิ่มขึ้น</span>
                           </div>
                           <div className="bid-type-description">
@@ -321,7 +358,7 @@ export default function AddAuction() {
                         />
                         <label htmlFor="sealed" className="bid-type-label">
                           <div className="bid-type-header">
-                            <span className="bid-type-icon">🔒</span>
+                            <span className="bid-type-icon" />
                             <span className="bid-type-title">การเสนอราคาแบบปิดผนึก</span>
                           </div>
                           <div className="bid-type-description">
@@ -387,11 +424,11 @@ export default function AddAuction() {
                 </div>
               </div>
 
-              {/* Product Image */}
+              {/* Product Images */}
               <div className="card">
                 <div className="card-header">
                   <h2 className="card-title flex items-center gap-2">
-                    <span>📸</span>
+                    <ImageIcon className="w-4 h-4 text-gray-400" />
                     <span>รูปภาพสินค้า</span>
                   </h2>
                 </div>
@@ -401,45 +438,92 @@ export default function AddAuction() {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={handleImageChange}
+                        multiple
+                        onChange={handleImagesChange}
                         className="file-input"
                         id="image-upload"
                         disabled={loading}
                       />
                       <label htmlFor="image-upload" className="upload-label">
                         <div className="upload-content">
-                          <div className="upload-icon">📷</div>
+                          <div className="upload-icon">
+                            <ImageIcon className="w-5 h-5 text-gray-500" />
+                          </div>
                           <div className="upload-text">
-                            <span className="upload-title">เลือกรูปภาพสินค้า</span>
-                            <span className="upload-subtitle">คลิกเพื่อเลือกหรือลากและวาง</span>
+                            <span className="upload-title">เลือกรูปภาพสินค้า (สูงสุด {MAX_IMAGES} รูป)</span>
+                            <span className="upload-subtitle">คลิกเพื่อเลือกหรือลากและวางไฟล์จากเครื่องของคุณ</span>
                           </div>
                         </div>
                       </label>
                     </div>
                     
-                    {preview && (
-                      <div className="image-preview">
-                        <img src={preview} alt="Product preview" className="preview-image" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setImage(null);
-                            setPreview('');
-                            if (errors.image) {
-                              setErrors({ ...errors, image: '' });
-                            }
-                          }}
-                          className="remove-image-btn"
-                          disabled={loading}
-                        >
-                          ✕
-                        </button>
+                    {previews.length > 0 && (
+                      <div className="auction-image-gallery">
+                        <div className="auction-image-gallery__main">
+                          <img
+                            src={previews[selectedPreviewIndex]}
+                            alt="Product preview"
+                            className="preview-image"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeImageAt(selectedPreviewIndex)}
+                            className="remove-image-btn"
+                            disabled={loading}
+                            title="ลบรูปนี้"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="auction-image-gallery__thumbs">
+                          {previews.map((url, idx) => (
+                            <button
+                              key={url}
+                              type="button"
+                              className={`auction-image-thumb ${idx === selectedPreviewIndex ? 'is-active' : ''}`}
+                              onClick={() => setSelectedPreviewIndex(idx)}
+                              disabled={loading}
+                              title={`รูปที่ ${idx + 1}`}
+                            >
+                              <img src={url} alt={`Preview ${idx + 1}`} />
+                            </button>
+                          ))}
+                          {previews.length < MAX_IMAGES && (
+                            <div className="auction-image-thumb auction-image-thumb--hint">
+                              เพิ่มได้อีก {MAX_IMAGES - previews.length} รูป
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
                   
                   {errors.image && <div className="form-error">{errors.image}</div>}
-                  <div className="form-help">อัพโหลดรูปภาพที่ชัดเจนและคุณภาพสูงของสินค้าของคุณ</div>
+                  <div className="form-help">อัพโหลดรูปภาพที่ชัดเจนและคุณภาพสูงของสินค้าของคุณ (อย่างน้อย 1 รูป · สูงสุด {MAX_IMAGES} รูป)</div>
+                </div>
+              </div>
+
+              {/* Fees Info */}
+              <div className="card bg-gray-50 border border-gray-100">
+                <div className="card-body">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1">
+                      <BadgePercent className="w-5 h-5 text-gray-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 mb-2">ข้อมูลค่าธรรมเนียม</h4>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <p><strong>ค่าธรรมเนียมเว็บไซต์:</strong> 5% ของราคาขายสุดท้าย</p>
+                        <p><strong>การชำระเงิน:</strong> เงินจะถูกเก็บไว้ในระบบจนกว่าผู้ซื้อจะยืนยันการรับสินค้า</p>
+                        <p><strong>การปล่อยเงิน:</strong> เงินจะถูกโอนเข้าบัญชีของคุณหลังจากผู้ซื้อยืนยันการรับสินค้าแล้ว</p>
+                      </div>
+                      <div className="mt-3 p-3 bg-white border border-gray-200 rounded-lg">
+                        <p className="text-xs text-gray-600">
+                          <strong>ตัวอย่าง:</strong> หากสินค้าขายในราคา ฿1,000 คุณจะได้รับ ฿950 (หักค่าธรรมเนียม 5% = ฿50)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -448,14 +532,12 @@ export default function AddAuction() {
                 <div className="card-body">
                   {message === 'success' && (
                     <div className="alert alert-success mb-4">
-                      <span>✅</span>
                       <span>สร้างการประมูลสำเร็จ! กำลังเปลี่ยนไปหน้าแรก...</span>
                     </div>
                   )}
                   
                   {message === 'error' && (
                     <div className="alert alert-error mb-4">
-                      <span>❌</span>
                       <div>
                         <div>ไม่สามารถสร้างการประมูลได้ กรุณาลองใหม่อีกครั้ง</div>
                         {errors.general && (
@@ -467,37 +549,14 @@ export default function AddAuction() {
                   
                   {message && message !== 'success' && message !== 'error' && (
                     <div className="alert alert-warning mb-4">
-                      <span>⚠️</span>
                       <span>{message}</span>
                     </div>
                   )}
 
-                  {/* Platform Fee Notice */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
-                        <span className="text-blue-600 text-xl">💡</span>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-blue-800 mb-2">ข้อมูลค่าธรรมเนียม</h4>
-                        <div className="space-y-2 text-sm text-blue-700">
-                          <p>• <strong>ค่าธรรมเนียมเว็บไซต์:</strong> 5% ของราคาขายสุดท้าย</p>
-                          <p>• <strong>การชำระเงิน:</strong> เงินจะถูกเก็บไว้ในระบบ escrow จนกว่าผู้ซื้อจะยืนยันการรับสินค้า</p>
-                          <p>• <strong>การปล่อยเงิน:</strong> เงินจะถูกโอนเข้าบัญชีของคุณหลังจากผู้ซื้อยืนยันการรับสินค้าแล้ว</p>
-                        </div>
-                        <div className="mt-3 p-3 bg-blue-100 rounded-lg">
-                          <p className="text-xs text-blue-600">
-                            <strong>ตัวอย่าง:</strong> หากสินค้าขายในราคา ฿1,000 คุณจะได้รับ ฿950 (หักค่าธรรมเนียม 5% = ฿50)
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="flex flex-col sm:flex-row gap-4">
                     <button
                       type="submit"
-                      className="btn btn-primary btn-lg flex-1"
+                      className="btn btn-bid-primary flex-1"
                       disabled={loading}
                     >
                       {loading ? (
@@ -506,17 +565,14 @@ export default function AddAuction() {
                           <span>กำลังสร้างการประมูล...</span>
                         </div>
                       ) : (
-                        <>
-                          <span>🚀</span>
-                          <span>สร้างการประมูล</span>
-                        </>
+                        <span>สร้างการประมูล</span>
                       )}
                     </button>
                     
                     <button
                       type="button"
                       onClick={() => navigate('/')}
-                      className="btn btn-secondary btn-lg"
+                      className="btn btn-secondary flex-1"
                       disabled={loading}
                     >
                       ยกเลิก
@@ -528,6 +584,70 @@ export default function AddAuction() {
           </div>
         </div>
       </div>
+
+      {/* Confirm Create Auction Modal */}
+      {confirmModalOpen && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">ยืนยันการสร้างการประมูล</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setConfirmModalOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="space-y-3 text-sm text-gray-700">
+                <p className="font-medium text-gray-900">
+                  คุณต้องการสร้างการประมูลนี้หรือไม่?
+                </p>
+                <div className="text-xs text-gray-600 space-y-1">
+                  {title && (
+                    <p>
+                      <span className="font-semibold">ชื่อการประมูล:</span>{' '}
+                      {title}
+                    </p>
+                  )}
+                  {startPrice && (
+                    <p>
+                      <span className="font-semibold">ราคาเริ่มต้น:</span>{' '}
+                      ฿{Number(startPrice || 0).toFixed(2)}
+                    </p>
+                  )}
+                  {bidType && (
+                    <p>
+                      <span className="font-semibold">ประเภทการเสนอราคา:</span>{' '}
+                      {bidType === 'increment' ? 'Increment bidding' : 'Sealed bidding'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmModalOpen(false)}
+                disabled={loading}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="btn btn-bid-primary"
+                onClick={handleConfirmCreate}
+                disabled={loading}
+              >
+                {loading ? 'กำลังสร้าง...' : 'ยืนยันการสร้างการประมูล'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Bell } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 import api from '../services/api.js';
 import io from 'socket.io-client';
@@ -48,7 +49,7 @@ export default function NotificationBell() {
   return (
     <div className="notification-bell">
       <a href="/notifications" className="bell-link">
-        🔔
+        <Bell className="w-5 h-5" aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="notification-badge">{unreadCount}</span>
         )}

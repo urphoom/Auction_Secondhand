@@ -69,15 +69,15 @@ export default function Register() {
   }
 
   return (
-    <div className="page">
+    <div className="page register-page">
       <div className="page-content">
         <div className="container">
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="w-full max-w-md">
+          <div className="flex items-center justify-center min-h-[70vh]">
+            <div className="w-full max-w-sm register-form">
               <div className="card">
-                <div className="card-header">
-                  <h2 className="card-title text-center">เข้าร่วม AuctionHub! 🚀</h2>
-                  <p className="text-center text-muted">สร้างบัญชีของคุณและเริ่มเสนอราคาวันนี้</p>
+                <div className="card-header text-center">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">สร้างบัญชีใหม่</h2>
+                  <p className="text-sm text-gray-500">กรอกข้อมูลของคุณเพื่อเริ่มใช้งานการประมูล</p>
                 </div>
                 <div className="card-body">
                   <form onSubmit={handleSubmit}>
@@ -167,30 +167,30 @@ export default function Register() {
                     </div>
 
                     {error && (
-                      <div className="alert alert-error">
+                      <div className="alert alert-error mt-2">
                         {error}
                       </div>
                     )}
 
-                    <button
-                      type="submit"
-                      className="btn btn-primary w-full"
-                      disabled={loading}
-                    >
-                      {loading ? 'กำลังสร้างบัญชี...' : 'สร้างบัญชี'}
-                    </button>
+                    <div className="register-submit-wrapper">
+                      <button
+                        type="submit"
+                        className="btn btn-bid-primary w-full register-submit-btn"
+                        disabled={loading}
+                      >
+                        {loading ? 'กำลังสร้างบัญชี...' : 'สร้างบัญชี'}
+                      </button>
+                    </div>
                   </form>
 
-                  <div className="text-center mt-4">
-                    <p className="text-muted">
+                  <div className="text-center mt-6">
+                    <p className="text-sm text-secondary">
                       มีบัญชีอยู่แล้ว?{' '}
-                      <Link to="/login" className="text-primary">
+                      <Link to="/login" className="text-primary-600 font-semibold hover:underline">
                         เข้าสู่ระบบที่นี่
                       </Link>
                     </p>
                   </div>
-
-                  
                 </div>
               </div>
             </div>
