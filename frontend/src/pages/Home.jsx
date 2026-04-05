@@ -169,52 +169,6 @@ export default function Home() {
               </div>
             )}
           </div>
-
-          {/* Modern Support Section */}
-          <div className="home-support-section mt-20">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-1">การสนับสนุนและชุมชน</h2>
-              <p className="text-gray-500 text-sm">รับความช่วยเหลือและเชื่อมต่อกับผู้ใช้คนอื่น</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="card text-center home-support-card">
-                <div className="card-content">
-                  <div className="w-16 h-16 bg-primary-100 rounded-full mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">การสนับสนุน 24/7</h3>
-                  <p className="text-gray-600 text-sm mb-4">ทีมสนับสนุนของเราพร้อมช่วยเหลือคุณตลอดเวลา</p>
-                  {currentUser ? (
-                    <Link to="/chat" className="btn btn-secondary btn-sm">
-                      เข้าสู่แชท
-                    </Link>
-                  ) : (
-                    <Link to="/login" className="btn btn-secondary btn-sm">
-                      เข้าสู่ระบบก่อน
-                    </Link>
-                  )}
-                </div>
-              </div>
-              
-              <div className="card text-center home-support-card">
-                <div className="card-content">
-                  <div className="w-16 h-16 bg-success-100 rounded-full mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">ชุมชนผู้ใช้</h3>
-                  <p className="text-gray-600 text-sm mb-4">เชื่อมต่อและแบ่งปันประสบการณ์กับผู้ใช้คนอื่น</p>
-                  {currentUser ? (
-                    <Link to="/chat" className="btn btn-secondary btn-sm">
-                      เข้าร่วมชุมชน
-                    </Link>
-                  ) : (
-                    <Link to="/login" className="btn btn-secondary btn-sm">
-                      เข้าสู่ระบบก่อน
-                    </Link>
-                  )}
-                </div>
-              </div>
-              
-              
-            </div>
-          </div>
         </div>
       </div>
     </div>

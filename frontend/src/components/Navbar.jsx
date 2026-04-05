@@ -12,6 +12,7 @@ import {
   Wallet,
   CreditCard,
   Package,
+  History,
   LogOut,
   ArrowRightLeft
 } from 'lucide-react';
@@ -264,12 +265,12 @@ export default function Navbar() {
                         type="button"
                         className="user-menu__item"
                         onClick={() => {
-                          navigate('/orders');
+                          navigate('/auction-history');
                           setMenuOpen(false);
                         }}
                         disabled={user.role === 'admin'}
                       >
-                        <Package size={16} />
+                        <History size={16} />
                         <span>ประวัติการประมูล</span>
                       </button>
                     </div>

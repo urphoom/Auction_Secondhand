@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Banknote, ClipboardList, Gavel, Users } from 'lucide-react';
 import api from '../../services/api.js';
+
+const statIconProps = { size: 26, strokeWidth: 1.75, 'aria-hidden': true };
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(value || 0));
@@ -59,25 +62,25 @@ export default function AdminDashboard() {
                 title="ผู้ใช้ทั้งหมด"
                 value={stats?.users?.total_users ?? 0}
                 description={`ผู้ใช้ที่มียอดเงิน: ${stats?.users?.users_with_balance ?? 0}`}
-                icon=""
+                icon={<Users {...statIconProps} />}
               />
               <StatCard
                 title="การประมูลทั้งหมด"
                 value={stats?.auctions?.total_auctions ?? 0}
                 description={`กำลังเปิด: ${stats?.auctions?.active_auctions ?? 0}`}
-                icon=""
+                icon={<Gavel {...statIconProps} />}
               />
               <StatCard
                 title="ยอดชำระเงินรวม"
                 value={formatCurrency(stats?.payments?.total_volume ?? 0)}
                 description={`จำนวนรายการ: ${stats?.payments?.total_transactions ?? 0}`}
-                icon=""
+                icon={<Banknote {...statIconProps} />}
               />
               <StatCard
                 title="คำขอที่รอดำเนินการ"
                 value={stats?.topUps?.pending_requests ?? 0}
                 description={`ทั้งหมด ${stats?.topUps?.total_requests ?? 0} รายการ`}
-                icon=""
+                icon={<ClipboardList {...statIconProps} />}
               />
             </div>
           </section>
@@ -146,7 +149,9 @@ export default function AdminDashboard() {
 function StatCard({ title, value, description, icon }) {
   return (
     <div className="card admin-stat-card">
-      <div className="admin-stat-card__icon">{icon}</div>
+      <div className="admin-stat-card__icon" aria-hidden>
+        {icon}
+      </div>
       <div className="admin-stat-card__body">
         <p className="admin-stat-card__title">{title}</p>
         <p className="admin-stat-card__value">{value}</p>

@@ -1,0 +1,312 @@
+
+/* Reset & Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--gray-50) 0%, var(--primary-50) 100%);
+  color: var(--gray-800);
+  line-height: 1.6;
+  min-height: 100vh;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--gray-900);
+}
+
+h1 { font-size: 2.25rem; }
+h2 { font-size: 1.875rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1.125rem; }
+h6 { font-size: 1rem; }
+
+p {
+  color: var(--gray-600);
+  line-height: 1.7;
+}
+
+/* Links */
+a {
+  color: var(--primary-600);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--primary-700);
+  text-decoration: none;
+}
+
+/* Buttons - Modern Design */
+button {
+  font-family: inherit;
+  cursor: pointer !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: var(--space-3) var(--space-4) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: var(--space-2) !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+.btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: var(--space-2) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 4px !important;
+}
+
+.btn-primary {
+  background: #2563eb !important;
+  color: white !important;
+  border: 1px solid #1d4ed8 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8 !important;
+  border-color: #1e40af !important;
+}
+
+.btn-secondary {
+  background: #4b5563 !important;
+  color: white !important;
+  border: 1px solid #374151 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+}
+
+.btn-secondary:hover {
+  background: #374151 !important;
+  border-color: #1f2937 !important;
+}
+
+.btn-success {
+  background: var(--success-500);
+  color: white;
+  border: 1px solid var(--success-400);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.btn-success:hover {
+  background: var(--success-600);
+  border-color: var(--success-500);
+}
+
+.btn-warning {
+  background: var(--warning-500);
+  color: white;
+  border: 1px solid var(--warning-400);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.btn-warning:hover {
+  background: var(--warning-600);
+  border-color: var(--warning-500);
+}
+
+.btn-danger {
+  background: var(--error-500);
+  color: white;
+  border: 1px solid var(--error-400);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.btn-danger:hover {
+  background: var(--error-600);
+  border-color: var(--error-500);
+}
+
+/* Button Sizes */
+.btn-sm {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
+.btn-lg {
+  padding: var(--space-4) var(--space-8);
+  font-size: 1rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.btn-xl {
+  padding: var(--space-5) var(--space-10);
+  font-size: 1.125rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Button Focus States */
+.btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.btn:active {
+  transform: none;
+}
+
+/* Form Elements */
+input, textarea, select {
+  font-family: inherit;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+  color: var(--gray-800);
+  line-height: 1.5;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.1);
+  background: white;
+}
+
+/* Placeholder Text - Better Readability */
+input::placeholder, textarea::placeholder {
+  color: var(--gray-500);
+  opacity: 1;
+  font-weight: 400;
+}
+
+input:focus::placeholder, textarea:focus::placeholder {
+  color: var(--gray-400);
+}
+
+/* Form Input Specific Styles */
+.form-input {
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+  color: var(--gray-800);
+  width: 100%;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.1);
+}
+
+.form-input::placeholder {
+  color: var(--gray-500);
+  opacity: 1;
+  font-weight: 400;
+}
+
+.form-input:focus::placeholder {
+  color: var(--gray-400);
+}
+
+.form-textarea {
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+  color: var(--gray-800);
+  width: 100%;
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.1);
+}
+
+.form-textarea::placeholder {
+  color: var(--gray-500);
+  opacity: 1;
+  font-weight: 400;
+}
+
+.form-textarea:focus::placeholder {
+  color: var(--gray-400);
+}
+
+/* Layout Components */
+.container {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 var(--space-4);
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  padding: var(--space-8) 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  text-align: center;
+  margin-bottom: var(--space-2);
+}
+
+.page-subtitle {
+  font-size: 1.125rem;
+  color: var(--gray-600);
+  text-align: center;
+}
+
+.page-content {
+  flex: 1;
+  padding: 1.5rem 0 var(--space-8) 0;
+}
+

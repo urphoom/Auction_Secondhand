@@ -1,0 +1,169 @@
+/* Forms - Modern Design */
+.form-group {
+  margin-bottom: var(--space-6);
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: var(--space-2);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.form-input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+  color: var(--gray-800);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.1);
+  background: white;
+}
+
+.form-input::placeholder {
+  color: var(--gray-500);
+  opacity: 1;
+  font-weight: 400;
+}
+
+.form-input:focus::placeholder {
+  color: var(--gray-400);
+}
+
+.form-input:disabled {
+  background: var(--gray-50);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+  color: var(--gray-800);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.1);
+  background: white;
+}
+
+.form-textarea::placeholder {
+  color: var(--gray-500);
+  opacity: 1;
+  font-weight: 400;
+}
+
+.form-textarea:focus::placeholder {
+  color: var(--gray-400);
+}
+
+.form-textarea:disabled {
+  background: var(--gray-50);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background-color: white;
+  color: var(--gray-800);
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.1);
+}
+
+/* Form Help Text */
+.form-help {
+  font-size: 0.875rem;
+  color: var(--gray-700);
+  margin-top: var(--space-2);
+  line-height: 1.5;
+  font-weight: 500;
+  padding: 0 var(--space-1);
+}
+
+/* Form Error Text */
+.form-error {
+  font-size: 0.875rem;
+  color: var(--error-600);
+  margin-top: var(--space-2);
+  font-weight: 600;
+  padding: 0 var(--space-1);
+}
+
+/* Error State for Form Inputs */
+.form-input.error, .form-textarea.error, .form-select.error {
+  border-color: var(--error-500);
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.1);
+}
+
+.form-input.error:focus, .form-textarea.error:focus, .form-select.error:focus {
+  border-color: var(--error-500);
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.1);
+}
+
+/* Tables - Modern Design */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.table th {
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-weight: 600;
+  padding: var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.table td {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-600);
+}
+
+.table tr:hover {
+  background: var(--gray-50);
+}
+

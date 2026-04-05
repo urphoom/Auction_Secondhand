@@ -21,6 +21,7 @@ import Withdraw from './pages/Withdraw.jsx';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals.jsx';
 import ReviewCreate from './pages/ReviewCreate.jsx';
 import SellerReviews from './pages/SellerReviews.jsx';
+import AuctionHistory from './pages/AuctionHistory.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 export default function App() {
@@ -77,6 +78,16 @@ export default function App() {
               user
                 ? user.role !== 'admin'
                   ? <Withdraw />
+                  : <Navigate to="/admin/dashboard" replace />
+                : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/auction-history"
+            element={
+              user
+                ? user.role !== 'admin'
+                  ? <AuctionHistory />
                   : <Navigate to="/admin/dashboard" replace />
                 : <Navigate to="/login" />
             }

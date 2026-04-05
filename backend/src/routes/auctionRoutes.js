@@ -185,6 +185,69 @@ router.get('/my-auctions', authRequired, async (req, res) => {
   res.json(rows.map(normalizeAuctionImages));
 });
 
+// Bidder: auctions the user has placed bids on (latest bid per auction)
+router.get('/my-bid-history', authRequired, async (req, res) => {
+  const pool = await getPool();
+  const userId = req.user.id;
+  const [rows] = await pool.query(
+    `
+    SELECT
+      a.id AS auction_id,
+      a.title,
+      a.image,
+      a.images,
+      a.end_time,
+      a.current_price,
+      a.bid_type,
+      a.start_price,
+      b.amount AS my_bid_amount,
+      b.created_at AS my_bid_at,
+      (
+        SELECT b2.user_id
+        FROM bids b2
+        WHERE b2.auction_id = a.id
+        ORDER BY b2.amount DESC, b2.created_at ASC
+        LIMIT 1
+      ) AS winner_user_id
+    FROM bids b
+    INNER JOIN auctions a ON a.id = b.auction_id
+    INNER JOIN (
+      SELECT auction_id, MAX(id) AS latest_bid_id
+      FROM bids
+      WHERE user_id = ?
+      GROUP BY auction_id
+    ) t ON t.latest_bid_id = b.id
+    WHERE b.user_id = ?
+    ORDER BY b.created_at DESC
+    `,
+    [userId, userId]
+  );
+
+  const payload = rows.map((row) => {
+    const base = normalizeAuctionImages({
+      id: row.auction_id,
+      title: row.title,
+      image: row.image,
+      images: row.images,
+      end_time: row.end_time,
+      current_price: row.current_price,
+      bid_type: row.bid_type,
+      start_price: row.start_price
+    });
+    const ended = new Date(row.end_time) <= new Date();
+    const wid = row.winner_user_id != null ? Number(row.winner_user_id) : null;
+    return {
+      ...base,
+      my_bid_amount: row.my_bid_amount,
+      my_bid_at: row.my_bid_at,
+      winner_user_id: wid,
+      i_won: ended && wid === Number(userId)
+    };
+  });
+
+  res.json(payload);
+});
+
 // Get one
 router.get('/:id', async (req, res) => {
   const pool = await getPool();

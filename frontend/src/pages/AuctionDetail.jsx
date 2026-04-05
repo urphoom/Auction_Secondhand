@@ -18,6 +18,16 @@ import {
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
 const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:4000';
 
+/** ราคาขั้นต่ำที่ยอมรับได้สำหรับแบบ increment — ตรงกับ backend (current + minimum_increment หรือมากกว่าราคาปัจจุบันเล็กน้อย) */
+function getMinNextBidIncrement(auction) {
+  if (!auction || auction.bid_type !== 'increment') return 0;
+  const cur = Number(auction.current_price);
+  const raw = auction.minimum_increment;
+  const inc = raw != null && raw !== '' ? Number(raw) : NaN;
+  if (Number.isFinite(inc) && inc > 0) return cur + inc;
+  return cur + 0.01;
+}
+
 export default function AuctionDetail() {
   const { id } = useParams();
   const [auction, setAuction] = useState(null);
@@ -579,10 +589,14 @@ export default function AuctionDetail() {
                         onChange={(e) => setBid(e.target.value)}
                         placeholder={
                           auction.bid_type === 'increment'
-                            ? `Enter amount higher than ฿${Number(auction.current_price).toFixed(2)}`
+                            ? `Enter amount at least ฿${getMinNextBidIncrement(auction).toFixed(2)}`
                             : `Enter your maximum bid (min: ฿${Number(auction.start_price).toFixed(2)})`
                         }
-                        min={auction.bid_type === 'increment' ? Number(auction.current_price) + 0.01 : Number(auction.start_price)}
+                        min={
+                          auction.bid_type === 'increment'
+                            ? getMinNextBidIncrement(auction)
+                            : Number(auction.start_price)
+                        }
                         step="0.01"
                         className="form-input flex-1"
                       />
