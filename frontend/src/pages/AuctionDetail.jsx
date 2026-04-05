@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import api from '../services/api.js';
 import { useAuth } from '../hooks/useAuth.js';
@@ -11,7 +11,8 @@ import {
   User,
   Users,
   Info,
-  Circle
+  Circle,
+  Star
 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
@@ -679,9 +680,22 @@ export default function AuctionDetail() {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wide text-gray-500">ผู้ขาย</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {auction.owner_username || 'ไม่ระบุ'}
-                      </p>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="text-sm font-medium text-gray-900">
+                          {auction.owner_username || 'ไม่ระบุ'}
+                        </p>
+                        <Link
+                          to={`/sellers/${auction.user_id}/reviews`}
+                          className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900"
+                          title="ดูรีวิวผู้ขายทั้งหมด"
+                        >
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" strokeWidth={1.5} />
+                          <span className="font-semibold text-gray-900">
+                            {Number(auction.owner_average_rating || 0).toFixed(1)}
+                          </span>
+                          <span className="text-gray-400">({Number(auction.owner_review_count || 0)} รีวิว)</span>
+                        </Link>
+                      </div>
                     </div>
                   </section>
                 </div>

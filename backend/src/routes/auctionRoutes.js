@@ -57,6 +57,39 @@ router.get('/active', async (req, res) => {
   res.json(rows.map(normalizeAuctionImages));
 });
 
+// Count of seller's currently active auctions (for /orders summary)
+router.get('/my-active-count', authRequired, async (req, res) => {
+  const pool = await getPool();
+  const userId = req.user.id;
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS count
+     FROM auctions
+     WHERE user_id = ?
+       AND end_time > NOW()
+       AND (status IS NULL OR status = 'active')`,
+    [userId]
+  );
+  res.json({ count: Number(rows?.[0]?.count || 0) });
+});
+
+// Counts for seller listings (active vs ended)
+router.get('/my-listing-counts', authRequired, async (req, res) => {
+  const pool = await getPool();
+  const userId = req.user.id;
+  const [[row]] = await pool.query(
+    `SELECT
+        SUM(CASE WHEN end_time > NOW() AND (status IS NULL OR status = 'active') THEN 1 ELSE 0 END) AS active_count,
+        SUM(CASE WHEN end_time <= NOW() OR status = 'ended' THEN 1 ELSE 0 END) AS ended_count
+     FROM auctions
+     WHERE user_id = ?`,
+    [userId]
+  );
+  res.json({
+    active: Number(row?.active_count || 0),
+    ended: Number(row?.ended_count || 0)
+  });
+});
+
 // Highest bid for auction
 router.get('/:id/highest-bid', async (req, res) => {
   const pool = await getPool();
@@ -156,7 +189,7 @@ router.get('/my-auctions', authRequired, async (req, res) => {
 router.get('/:id', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(
-    'SELECT a.*, u.username AS owner_username FROM auctions a JOIN users u ON a.user_id = u.id WHERE a.id=?',
+    'SELECT a.*, u.username AS owner_username, u.average_rating AS owner_average_rating, u.review_count AS owner_review_count FROM auctions a JOIN users u ON a.user_id = u.id WHERE a.id=?',
     [req.params.id]
   );
   if (!rows.length) return res.status(404).json({ message: 'Not found' });

@@ -19,6 +19,8 @@ import AdminUsers from './pages/admin/AdminUsers.jsx';
 import TopUpRequest from './pages/TopUpRequest.jsx';
 import Withdraw from './pages/Withdraw.jsx';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals.jsx';
+import ReviewCreate from './pages/ReviewCreate.jsx';
+import SellerReviews from './pages/SellerReviews.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 export default function App() {
@@ -67,6 +69,8 @@ export default function App() {
           <Route path="/chat" element={user ? <Chat /> : <Navigate to="/login" />} />
           <Route path="/notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
           <Route path="/payments" element={user ? <Payment /> : <Navigate to="/login" />} />
+          <Route path="/reviews/new/:orderId" element={user ? <ReviewCreate /> : <Navigate to="/login" />} />
+          <Route path="/sellers/:sellerId/reviews" element={<SellerReviews />} />
           <Route
             path="/withdraw"
             element={

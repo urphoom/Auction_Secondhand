@@ -17,6 +17,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import topUpRoutes from './routes/topUpRoutes.js';
 import withdrawalRoutes from './routes/withdrawalRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
 import { registerBidSocketHandlers } from './sockets/bidSocket.js';
 import { registerChatSocketHandlers } from './sockets/chatSocket.js';
 import { registerNotificationSocketHandlers } from './sockets/notificationSocket.js';
@@ -54,6 +55,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/top-ups', topUpRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Health
 app.get('/api/health', async (req, res) => {

@@ -20,6 +20,8 @@ export default function OrderManagement() {
   const [selectedAuction, setSelectedAuction] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [activeListingsCount, setActiveListingsCount] = useState(0);
+  const [endedListingsCount, setEndedListingsCount] = useState(0);
   const [shippingData, setShippingData] = useState({
     shipping_address: '',
     shipping_method: 'standard',
@@ -42,8 +44,8 @@ export default function OrderManagement() {
 
   const summaryCards = useMemo(() => {
     const now = new Date();
-    const activeAuctions = auctions.filter((auction) => new Date(auction.end_time) > now).length;
-    const totalListings = auctions.length;
+    const activeAuctions = activeListingsCount || auctions.filter((auction) => new Date(auction.end_time) > now).length;
+    const endedAuctions = endedListingsCount || auctions.filter((auction) => new Date(auction.end_time) <= now).length;
 
     const sellerTransactions = transactions.filter((transaction) => transaction.seller_id === user?.id);
     const awaitingPayment = sellerTransactions.filter((transaction) => transaction.status === 'pending').length;
@@ -60,7 +62,7 @@ export default function OrderManagement() {
         icon: <Gavel className="w-5 h-5 text-gray-500" />,
         label: 'รายการกำลังประมูล',
         value: `${activeAuctions}`,
-        caption: `ทั้งหมด ${totalListings} รายการ`
+        caption: `กำลังเปิด ${activeAuctions} • จบแล้ว ${endedAuctions}`
       },
       {
         key: 'awaitingShipment',
@@ -84,12 +86,34 @@ export default function OrderManagement() {
         caption: 'ยอดรวมตั้งแต่เริ่มขาย'
       }
     ];
-  }, [auctions, transactions, user, formatCurrency]);
+  }, [auctions, transactions, user, formatCurrency, activeListingsCount, endedListingsCount]);
 
   useEffect(() => {
     loadAuctions();
     loadShippingStatuses();
+    loadActiveListingsCount();
+    loadListingCounts();
   }, []);
+
+  const loadActiveListingsCount = async () => {
+    try {
+      const { data } = await api.get('/auctions/my-active-count');
+      setActiveListingsCount(Number(data.count) || 0);
+    } catch (error) {
+      // fallback to local calc if endpoint unavailable
+      setActiveListingsCount(0);
+    }
+  };
+
+  const loadListingCounts = async () => {
+    try {
+      const { data } = await api.get('/auctions/my-listing-counts');
+      setActiveListingsCount(Number(data.active) || 0);
+      setEndedListingsCount(Number(data.ended) || 0);
+    } catch (error) {
+      setEndedListingsCount(0);
+    }
+  };
 
   const loadAuctions = async () => {
     try {

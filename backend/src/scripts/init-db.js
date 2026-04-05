@@ -16,6 +16,9 @@ async function main() {
   `);
   // In case the table exists without balance column (older deployments)
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS balance DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+  // Trust / rating cache
+  try { await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS average_rating DECIMAL(3,2) NOT NULL DEFAULT 0.00"); } catch {}
+  try { await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS review_count INT NOT NULL DEFAULT 0"); } catch {}
   
   // Auctions (create first; then apply ALTERs for older deployments)
   await pool.query(`
@@ -73,10 +76,56 @@ async function main() {
     ) ENGINE=InnoDB;
   `);
 
+  // Payments (needed for review eligibility validation)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payment_transactions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      auction_id INT NOT NULL,
+      winner_id INT NOT NULL,
+      seller_id INT NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      status ENUM('pending', 'paid', 'shipped', 'delivered', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
+      payment_method VARCHAR(50) DEFAULT 'escrow',
+      payment_reference VARCHAR(255),
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      paid_at DATETIME NULL,
+      shipped_at DATETIME NULL,
+      delivered_at DATETIME NULL,
+      completed_at DATETIME NULL,
+      INDEX (auction_id),
+      INDEX (winner_id),
+      INDEX (seller_id),
+      INDEX (status)
+    ) ENGINE=InnoDB;
+  `);
+  // FK constraints (best-effort)
+  try {
+    await pool.query(`
+      ALTER TABLE payment_transactions
+      ADD CONSTRAINT fk_payment_auction
+      FOREIGN KEY (auction_id) REFERENCES auctions(id) ON DELETE CASCADE
+    `);
+  } catch {}
+  try {
+    await pool.query(`
+      ALTER TABLE payment_transactions
+      ADD CONSTRAINT fk_payment_winner
+      FOREIGN KEY (winner_id) REFERENCES users(id) ON DELETE CASCADE
+    `);
+  } catch {}
+  try {
+    await pool.query(`
+      ALTER TABLE payment_transactions
+      ADD CONSTRAINT fk_payment_seller
+      FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
+    `);
+  } catch {}
+
   // Reviews table for buyer reviewing seller after completed payment
   await pool.query(`
     CREATE TABLE IF NOT EXISTS reviews (
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id INT NOT NULL,
       auction_id INT UNSIGNED NOT NULL,
       seller_id INT UNSIGNED NOT NULL,
       buyer_id INT UNSIGNED NOT NULL,
@@ -85,7 +134,10 @@ async function main() {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
+      UNIQUE KEY uq_review_order (order_id),
       UNIQUE KEY uq_review_auction_buyer (auction_id, buyer_id),
+      CONSTRAINT fk_reviews_order FOREIGN KEY (order_id) REFERENCES payment_transactions(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT fk_reviews_auction FOREIGN KEY (auction_id) REFERENCES auctions(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT fk_reviews_seller FOREIGN KEY (seller_id) REFERENCES users(id)
@@ -95,10 +147,49 @@ async function main() {
       CONSTRAINT chk_reviews_rating CHECK (rating BETWEEN 1 AND 5)
     ) ENGINE=InnoDB;
   `);
+  // Patch older deployments that created reviews before order_id existed
+  try { await pool.query("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS order_id INT NOT NULL AFTER id"); } catch {}
+  try { await pool.query("ALTER TABLE reviews ADD UNIQUE INDEX IF NOT EXISTS uq_review_order (order_id)"); } catch {}
+  try {
+    await pool.query(`
+      ALTER TABLE reviews
+      ADD CONSTRAINT fk_reviews_order
+      FOREIGN KEY (order_id) REFERENCES payment_transactions(id)
+      ON DELETE CASCADE ON UPDATE CASCADE
+    `);
+  } catch {}
   // Helpful indexes for reviews
   try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_auction_id ON reviews(auction_id)"); } catch {}
   try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_seller_id ON reviews(seller_id)"); } catch {}
   try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_buyer_id ON reviews(buyer_id)"); } catch {}
+  try { await pool.query("CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON reviews(order_id)"); } catch {}
+
+  // Trigger: when a new review is inserted, recalc seller avg/count using only completed orders
+  try { await pool.query('DROP TRIGGER IF EXISTS trg_reviews_after_insert'); } catch {}
+  try {
+    await pool.query(`
+      CREATE TRIGGER trg_reviews_after_insert
+      AFTER INSERT ON reviews
+      FOR EACH ROW
+      UPDATE users u
+      SET
+        u.average_rating = (
+          SELECT IFNULL(AVG(r.rating), 0)
+          FROM reviews r
+          JOIN payment_transactions pt ON pt.id = r.order_id
+          WHERE r.seller_id = NEW.seller_id AND pt.status = 'completed'
+        ),
+        u.review_count = (
+          SELECT COUNT(*)
+          FROM reviews r
+          JOIN payment_transactions pt ON pt.id = r.order_id
+          WHERE r.seller_id = NEW.seller_id AND pt.status = 'completed'
+        )
+      WHERE u.id = NEW.seller_id
+    `);
+  } catch (err) {
+    // ignore if permissions/restrictions prevent triggers
+  }
 
   // Chat rooms
   await pool.query(`

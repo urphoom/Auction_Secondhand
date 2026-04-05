@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.js';
 import api from '../services/api.js';
 import io from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 import { Wallet, Clock, Truck, CheckCircle2 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
@@ -35,6 +36,7 @@ const statusMeta = {
 };
 
 export default function Payment() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -546,6 +548,26 @@ export default function Payment() {
                               type="button"
                             >
                               ยืนยันว่าได้รับสินค้าแล้ว
+                            </button>
+                          )}
+
+                          {transaction.status === 'delivered' && (
+                            <button
+                              onClick={() => handleComplete(transaction.id)}
+                              className="btn btn-bid-primary btn-sm"
+                              type="button"
+                            >
+                              เสร็จสิ้น
+                            </button>
+                          )}
+
+                          {transaction.status === 'completed' && (
+                            <button
+                              onClick={() => navigate(`/reviews/new/${transaction.id}`)}
+                              className="btn btn-secondary btn-sm"
+                              type="button"
+                            >
+                              ให้คะแนนผู้ขาย
                             </button>
                           )}
                         </div>
