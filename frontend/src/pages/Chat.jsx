@@ -11,6 +11,7 @@ export default function Chat() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rooms, setRooms] = useState([]);
+  const [roomSearch, setRoomSearch] = useState('');
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [roomLastMessages, setRoomLastMessages] = useState({});
@@ -208,6 +209,12 @@ export default function Chat() {
       alert('ไม่สามารถสร้างห้องแชทได้');
     }
   };
+
+  const filteredRooms = (() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return rooms;
+    return rooms.filter((r) => (r.name || '').toLowerCase().includes(q));
+  })();
 
   const selectRoom = (room) => {
     setSelectedRoom(room);
@@ -436,9 +443,20 @@ export default function Chat() {
                 </div>
               )}
 
+              {/* Search rooms */}
+              <div className="mb-4">
+                <input
+                  type="search"
+                  value={roomSearch}
+                  onChange={(e) => setRoomSearch(e.target.value)}
+                  className="form-input"
+                  placeholder="ค้นหาชื่อห้องแชท..."
+                />
+              </div>
+
               {/* Modern Rooms List */}
               <div className="rooms-list">
-                {rooms.map((room) => {
+                {filteredRooms.map((room) => {
                   const hasUnread = room.unread_count > 0 || room.has_unread;
                   const lastTime = room.lastMessage
                     ? new Date(room.lastMessage.created_at).toLocaleTimeString('en-US', {
@@ -495,6 +513,11 @@ export default function Chat() {
                     </div>
                   );
                 })}
+                {filteredRooms.length === 0 && (
+                  <div className="text-sm text-gray-500 py-4 text-center">
+                    ไม่พบห้องแชทที่ตรงกับคำค้นหา
+                  </div>
+                )}
               </div>
             </div>
 

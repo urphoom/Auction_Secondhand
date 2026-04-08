@@ -133,7 +133,7 @@ export default function AuctionHistory() {
                               <span className={`badge ${ended ? 'badge-info' : 'badge-success'}`}>{statusLabel}</span>
                             </td>
                             <td>
-                              <span className={`text-sm font-medium ${row.i_won ? 'text-green-700' : ended ? 'text-gray-600' : 'text-amber-700'}`}>
+                              <span className={`text-sm font-medium whitespace-nowrap ${row.i_won ? 'text-green-700' : ended ? 'text-gray-600' : 'text-amber-700'}`}>
                                 {outcomeLabel}
                               </span>
                             </td>

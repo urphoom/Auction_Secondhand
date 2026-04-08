@@ -598,8 +598,13 @@ export default function AuctionDetail() {
                   </div>
                 </div>
 
-                {/* Buy now */}
-                {!ended && auction.buy_now_price && user && user.role !== 'admin' && user.id !== auction.user_id && (
+                {/* Buy now (only when there are no bids yet) */}
+                {!ended &&
+                  auction.buy_now_price &&
+                  user &&
+                  user.role !== 'admin' &&
+                  user.id !== auction.user_id &&
+                  Number(auction.bid_count ?? bidsForHistory.length ?? 0) === 0 && (
                   <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>

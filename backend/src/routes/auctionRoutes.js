@@ -252,7 +252,14 @@ router.get('/my-bid-history', authRequired, async (req, res) => {
 router.get('/:id', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(
-    'SELECT a.*, u.username AS owner_username, u.average_rating AS owner_average_rating, u.review_count AS owner_review_count FROM auctions a JOIN users u ON a.user_id = u.id WHERE a.id=?',
+    `SELECT a.*,
+            u.username AS owner_username,
+            u.average_rating AS owner_average_rating,
+            u.review_count AS owner_review_count,
+            (SELECT COUNT(*) FROM bids b WHERE b.auction_id = a.id) AS bid_count
+       FROM auctions a
+       JOIN users u ON a.user_id = u.id
+      WHERE a.id=?`,
     [req.params.id]
   );
   if (!rows.length) return res.status(404).json({ message: 'Not found' });
