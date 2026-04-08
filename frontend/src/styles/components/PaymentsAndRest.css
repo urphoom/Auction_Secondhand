@@ -525,6 +525,97 @@
   gap: var(--space-4);
 }
 
+/* Payments: summary cards variant (clean, consistent height) */
+.payment-summary-grid .order-summary-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  gap: var(--space-4);
+  min-height: 96px;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.payment-summary-grid .order-summary-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--primary-600);
+  opacity: 0.7;
+}
+
+.payment-summary-grid .order-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.payment-summary-grid .order-summary-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+}
+
+.payment-summary-grid .order-summary-content {
+  min-width: 0;
+}
+
+.payment-summary-grid .order-summary-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+}
+
+.payment-summary-grid .order-summary-value {
+  font-size: 1.65rem;
+  line-height: 1.1;
+}
+
+.payment-summary-grid .order-summary-caption {
+  margin-top: 2px;
+  max-width: 100%;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.25;
+}
+
+/* Accent colors per card */
+.payment-summary-grid .order-summary-card:nth-child(1)::before {
+  background: rgba(14, 165, 233, 1);
+}
+.payment-summary-grid .order-summary-card:nth-child(2)::before {
+  background: rgba(34, 197, 94, 1);
+}
+.payment-summary-grid .order-summary-card:nth-child(3)::before {
+  background: rgba(249, 115, 22, 1);
+}
+.payment-summary-grid .order-summary-card:nth-child(4)::before {
+  background: rgba(99, 102, 241, 1);
+}
+
+@media (max-width: 768px) {
+  .payment-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .payment-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .order-summary-card {
   background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(14, 116, 233, 0.15) 100%);
   border-radius: var(--radius-xl);

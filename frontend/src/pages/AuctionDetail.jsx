@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import api from '../services/api.js';
 import { useAuth } from '../hooks/useAuth.js';
+import { formatCurrency } from '../utils/formatCurrency.js';
 import {
   Clock,
   Gavel,
@@ -273,6 +274,8 @@ export default function AuctionDetail() {
     return parts.join(' ');
   };
 
+  const fmtMoney = (v) => formatCurrency(v);
+
   function openBidConfirm() {
     setError('');
     if (!user) {
@@ -296,12 +299,12 @@ export default function AuctionDetail() {
         return;
       }
       if (auction.minimum_increment && amount < Number(auction.current_price) + Number(auction.minimum_increment)) {
-        setError(`Bid must be at least ฿${(Number(auction.current_price) + Number(auction.minimum_increment)).toFixed(2)} (current price + minimum increment)`);
+        setError(`Bid must be at least ${fmtMoney(Number(auction.current_price) + Number(auction.minimum_increment))} (current price + minimum increment)`);
         return;
       }
     } else if (auction.bid_type === 'sealed') {
       if (amount < Number(auction.start_price)) {
-        setError(`Bid must be at least the starting price of ฿${Number(auction.start_price).toFixed(2)}`);
+        setError(`Bid must be at least the starting price of ${fmtMoney(auction.start_price)}`);
         return;
       }
     }
@@ -364,7 +367,7 @@ export default function AuctionDetail() {
     
     // Check if user has sufficient balance
     if (Number(currentBalance) < buyNowPrice) {
-      setError(`ยอดเงินไม่เพียงพอ! คุณมี ฿${Number(currentBalance).toFixed(2)} แต่ต้องการ ฿${buyNowPrice.toFixed(2)}`);
+      setError(`ยอดเงินไม่เพียงพอ! คุณมี ${fmtMoney(currentBalance)} แต่ต้องการ ${fmtMoney(buyNowPrice)}`);
       return;
     }
     
@@ -402,7 +405,7 @@ export default function AuctionDetail() {
       setIsWinner(true);
       checkPaymentTransaction();
       
-      alert('ซื้อสินค้าสำเร็จ!\n\nคุณได้ซื้อสินค้านี้ในราคา ฿' + buyNowPrice.toFixed(2) + '\nกรุณาไปที่หน้า Payments เพื่อชำระเงิน');
+      alert('ซื้อสินค้าสำเร็จ!\n\nคุณได้ซื้อสินค้านี้ในราคา ' + fmtMoney(buyNowPrice) + '\nกรุณาไปที่หน้า Payments เพื่อชำระเงิน');
       
       // Redirect to payments page after a short delay
       setTimeout(() => {
@@ -518,7 +521,7 @@ export default function AuctionDetail() {
                           <div className="bid-date-header">วันที่และเวลาเสนอราคา</div>
                         </div>
                         <div className="bidder-table-row">
-                          <div className="bid-amount">฿{Number(highest.amount).toFixed(2)}</div>
+                          <div className="bid-amount">{fmtMoney(highest.amount)}</div>
                           <div className="bid-date">{new Date(highest.created_at || Date.now()).toLocaleString('th-TH', {
                             year: 'numeric',
                             month: 'long',
@@ -552,7 +555,7 @@ export default function AuctionDetail() {
                   <div className="flex items-end justify-between gap-6">
                     <div>
                       <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">ราคาเปิดประมูล</p>
-                      <p className="auction-price-main">฿{Number(auction.start_price).toFixed(2)}</p>
+                      <p className="auction-price-main">{fmtMoney(auction.start_price)}</p>
                       <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
                         <span>{bidsForHistory.length} bids</span>
                         <button
@@ -568,7 +571,7 @@ export default function AuctionDetail() {
                       <div className="text-right">
                         <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">ราคาที่คุณเสนอ</p>
                         <p className="text-lg font-semibold text-gray-900">
-                          {myBestBidAmount !== null ? `฿${myBestBidAmount.toFixed(2)}` : '—'}
+                          {myBestBidAmount !== null ? fmtMoney(myBestBidAmount) : '—'}
                         </p>
                         {auction.bid_type === 'increment' && !ended && myBestBidAmount !== null && highestBidAmount !== null && (
                           <p
@@ -613,13 +616,13 @@ export default function AuctionDetail() {
                           <span>ซื้อทันที</span>
                         </div>
                         <p className="mt-1 text-sm text-gray-600">
-                          ฿{Number(auction.buy_now_price).toFixed(2)} • ปิดประมูลทันที
+                          {fmtMoney(auction.buy_now_price)} • ปิดประมูลทันที
                         </p>
                         {userBalance !== null && (
                           <p className="mt-1 text-xs text-gray-500">
                             ยอดเงินของคุณ:{' '}
                             <span className={Number(userBalance) < Number(auction.buy_now_price) ? 'text-red-600 font-semibold' : 'text-gray-800 font-semibold'}>
-                              ฿{Number(userBalance).toFixed(2)}
+                              {fmtMoney(userBalance)}
                             </span>
                           </p>
                         )}
@@ -648,8 +651,8 @@ export default function AuctionDetail() {
                         onChange={(e) => setBid(e.target.value)}
                         placeholder={
                           auction.bid_type === 'increment'
-                            ? `Enter amount at least ฿${getMinNextBidIncrement(auction).toFixed(2)}`
-                            : `Enter your maximum bid (min: ฿${Number(auction.start_price).toFixed(2)})`
+                            ? `Enter amount at least ${fmtMoney(getMinNextBidIncrement(auction))}`
+                            : `Enter your maximum bid (min: ${fmtMoney(auction.start_price)})`
                         }
                         min={
                           auction.bid_type === 'increment'
@@ -799,7 +802,7 @@ export default function AuctionDetail() {
                         <span>ราคาเริ่มต้น</span>
                       </div>
                       <p className="text-sm font-semibold text-gray-900">
-                        ฿{Number(auction.start_price).toFixed(2)}
+                        {fmtMoney(auction.start_price)}
                       </p>
                     </section>
 
@@ -810,7 +813,7 @@ export default function AuctionDetail() {
                           <span>บิดขั้นต่ำ</span>
                         </div>
                         <p className="text-sm font-semibold text-gray-900">
-                          ฿{Number(auction.minimum_increment).toFixed(2)}
+                          {fmtMoney(auction.minimum_increment)}
                         </p>
                       </section>
                     )}
@@ -822,7 +825,7 @@ export default function AuctionDetail() {
                           <span>ราคาซื้อทันที</span>
                         </div>
                         <p className="text-sm font-semibold text-gray-900">
-                          ฿{Number(auction.buy_now_price).toFixed(2)}
+                          {fmtMoney(auction.buy_now_price)}
                         </p>
                       </section>
                     )}
@@ -833,7 +836,7 @@ export default function AuctionDetail() {
                       <p className="text-xs font-semibold text-emerald-700 mb-1">ผู้ชนะการประมูล</p>
                       <p className="text-sm font-bold text-emerald-900">{winnerInfo.username}</p>
                       <p className="text-xs text-emerald-700 mt-1">
-                        ราคาที่ชนะ: ฿{Number(winnerInfo.amount).toFixed(2)}
+                        ราคาที่ชนะ: {fmtMoney(winnerInfo.amount)}
                       </p>
                       {winnerInfo.isCurrentUser && (
                         <p className="text-xs font-semibold text-emerald-700 mt-1">
@@ -856,7 +859,7 @@ export default function AuctionDetail() {
                             {topBidders.map((bidder, index) => (
                               <div key={bidder.username} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                                 <span className="font-medium text-sm">#{index + 1} {bidder.username}</span>
-                                <span className="font-bold text-primary text-sm">฿{Number(bidder.top_amount).toFixed(2)}</span>
+                                <span className="font-bold text-primary text-sm">{fmtMoney(bidder.top_amount)}</span>
                               </div>
                             ))}
                           </div>
@@ -891,7 +894,7 @@ export default function AuctionDetail() {
                                     </span>
                                   </div>
                                   <div className="text-sm font-semibold text-gray-900">
-                                    ฿{Number(bid.amount).toFixed(2)}
+                                    {fmtMoney(bid.amount)}
                                   </div>
                                 </div>
                               );
@@ -935,7 +938,7 @@ export default function AuctionDetail() {
                                   </span>
                                 </div>
                                 <div className="text-sm font-semibold text-gray-900">
-                                  ฿{Number(bid.amount).toFixed(2)}
+                                  {fmtMoney(bid.amount)}
                                 </div>
                               </div>
                             ))}
@@ -950,7 +953,7 @@ export default function AuctionDetail() {
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <h4 className="font-semibold text-green-800 mb-1 text-sm">คุณคือผู้ชนะ!</h4>
                         <p className="text-xs text-green-700">
-                          คุณชนะการประมูลนี้ด้วยราคา ฿{Number(auction.current_price).toFixed(2)}
+                          คุณชนะการประมูลนี้ด้วยราคา {fmtMoney(auction.current_price)}
                         </p>
                       </div>
 
@@ -1010,7 +1013,7 @@ export default function AuctionDetail() {
                 <p className="font-medium text-gray-900">
                   คุณต้องการซื้อสินค้านี้ทันทีในราคา{' '}
                   <span className="font-semibold">
-                    ฿{Number(auction.buy_now_price).toFixed(2)}
+                    {fmtMoney(auction.buy_now_price)}
                   </span>{' '}
                   หรือไม่?
                 </p>
@@ -1019,13 +1022,13 @@ export default function AuctionDetail() {
                     <p>
                       ยอดเงินปัจจุบันของคุณ:{' '}
                       <span className="font-semibold">
-                        ฿{Number(userBalance).toFixed(2)}
+                        {fmtMoney(userBalance)}
                       </span>
                     </p>
                     <p>
                       ยอดเงินหลังซื้อ:{' '}
                       <span className="font-semibold">
-                        ฿{(Number(userBalance) - Number(auction.buy_now_price)).toFixed(2)}
+                        {fmtMoney(Number(userBalance) - Number(auction.buy_now_price))}
                       </span>
                     </p>
                   </>
@@ -1079,7 +1082,7 @@ export default function AuctionDetail() {
                 <p className="font-medium text-gray-900">
                   คุณต้องการบิดจำนวน{' '}
                   <span className="font-semibold">
-                    ฿{Number(bid || 0).toFixed(2)}
+                    {fmtMoney(bid || 0)}
                   </span>{' '}
                   สำหรับการประมูลนี้หรือไม่?
                 </p>
@@ -1146,7 +1149,7 @@ export default function AuctionDetail() {
                           >
                             <div className="min-w-0">
                               <div className={`font-semibold ${isHighest ? 'text-primary-700' : 'text-gray-900'}`}>
-                                ฿{Number(b.amount).toFixed(2)}
+                                {fmtMoney(b.amount)}
                               </div>
                               <div className="text-xs text-gray-500">{maskBidUsername(b.username, index)}</div>
                             </div>

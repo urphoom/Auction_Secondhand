@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Clock3 } from 'lucide-react';
+import { formatCurrency } from '../utils/formatCurrency.js';
 
 const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:4000';
 
@@ -124,11 +125,11 @@ export default function AuctionCard({ auction }) {
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
             Current Bid
           </div>
-          <div className="auction-price">฿{Number(auction.current_price).toFixed(2)}</div>
+          <div className="auction-price">{formatCurrency(auction.current_price)}</div>
           
           {auction.bid_type === 'increment' && auction.minimum_increment && (
             <div className="text-sm text-gray-600 mt-1">
-              Min. increment: ฿{Number(auction.minimum_increment).toFixed(2)}
+              Min. increment: {formatCurrency(auction.minimum_increment)}
             </div>
           )}
         </div>

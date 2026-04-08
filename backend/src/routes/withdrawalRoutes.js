@@ -6,8 +6,6 @@ import { NotificationService } from '../services/notificationService.js';
 
 const router = Router();
 
-const MIN_WITHDRAW_AMOUNT = 300;
-
 function getWithdrawFee() {
   const raw = process.env.WITHDRAW_FEE;
   const n = Number(raw);
@@ -42,8 +40,8 @@ router.post('/', authRequired, async (req, res) => {
   }
 
   const numericAmount = Number(amount);
-  if (!Number.isFinite(numericAmount) || numericAmount < MIN_WITHDRAW_AMOUNT) {
-    return res.status(400).json({ message: `จำนวนเงินถอนขั้นต่ำคือ ฿${MIN_WITHDRAW_AMOUNT}` });
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return res.status(400).json({ message: 'จำนวนเงินไม่ถูกต้อง' });
   }
 
   const trimmedBank = (bankName || '').toString().trim();

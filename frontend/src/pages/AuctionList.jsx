@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatCurrency } from '../utils/formatCurrency.js';
 import api from '../services/api.js';
 import AuctionCard from '../components/AuctionCard.jsx';
 import { ArrowUpDown, Filter } from 'lucide-react';
@@ -247,11 +248,11 @@ export default function AuctionList() {
                         </div>
                       </div>
                       
-                      <div className="auction-price">฿{Number(auction.current_price).toFixed(2)}</div>
+                      <div className="auction-price">{formatCurrency(auction.current_price)}</div>
                       
                       {auction.bid_type === 'increment' && auction.minimum_increment && (
                         <div className="text-sm text-muted mb-2">
-                          เพิ่มขั้นต่ำ: ฿{Number(auction.minimum_increment).toFixed(2)}
+                          เพิ่มขั้นต่ำ: {formatCurrency(auction.minimum_increment)}
                         </div>
                       )}
                       

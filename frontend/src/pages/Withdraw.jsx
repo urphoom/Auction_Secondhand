@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api.js';
 
-const MIN_WITHDRAW = 300;
 const WITHDRAW_FEE = Number(import.meta.env.VITE_WITHDRAW_FEE || 20);
 
 const bankOptions = [
@@ -85,8 +84,8 @@ export default function Withdraw() {
     event.preventDefault();
     setMessage({ type: '', text: '' });
 
-    if (!amount || Number(amount) < MIN_WITHDRAW) {
-      setMessage({ type: 'error', text: `จำนวนเงินถอนขั้นต่ำคือ ฿${MIN_WITHDRAW}` });
+    if (!amount || Number(amount) <= 0) {
+      setMessage({ type: 'error', text: 'กรุณากรอกจำนวนเงินที่ต้องการถอน' });
       return;
     }
     if (Number(amount) > withdrawable) {
@@ -146,7 +145,7 @@ export default function Withdraw() {
               <div className="card-content">
                 <h2 className="topup-section-title">ส่งคำขอถอนเงิน</h2>
                 <p className="topup-section-subtitle">
-                  ยอดที่ถอนได้: <strong>฿{withdrawable.toFixed(2)}</strong> · ถอนขั้นต่ำ ฿{MIN_WITHDRAW}
+                  ยอดที่ถอนได้: <strong>฿{withdrawable.toFixed(2)}</strong>
                 </p>
 
                 {message.text && (
@@ -160,11 +159,11 @@ export default function Withdraw() {
                     <span>จำนวนเงินที่ต้องการถอน (บาท) *</span>
                     <input
                       type="number"
-                      min={MIN_WITHDRAW}
+                      min="0"
                       step="0.01"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      placeholder={`ขั้นต่ำ ${MIN_WITHDRAW}`}
+                      placeholder="เช่น 500"
                       disabled={submitting}
                     />
                     <small className="text-muted">

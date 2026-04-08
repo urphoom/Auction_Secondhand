@@ -4,6 +4,7 @@ import api from '../services/api.js';
 import io from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { Wallet, Clock, Truck, CheckCircle2 } from 'lucide-react';
+import { formatCurrency } from '../utils/formatCurrency.js';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
 
@@ -49,13 +50,7 @@ export default function Payment() {
   const [shippingErrors, setShippingErrors] = useState({});
   const [shippingSubmitting, setShippingSubmitting] = useState(false);
 
-  const formatCurrency = useCallback((value) => {
-    const amount = Number(value || 0);
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB'
-    }).format(amount);
-  }, []);
+  const formatCurrencyLocal = useCallback((value) => formatCurrency(value), []);
 
   const summaryCards = useMemo(() => {
     const pending = transactions.filter((transaction) => transaction.status === 'pending').length;
@@ -71,7 +66,7 @@ export default function Payment() {
         key: 'balance',
         icon: <Wallet className="w-5 h-5 text-gray-500" />,
         label: 'ยอดเงินในบัญชี',
-        value: formatCurrency(balance),
+        value: formatCurrencyLocal(balance),
         caption: 'พร้อมใช้สำหรับประมูลครั้งถัดไป'
       },
       {
@@ -86,17 +81,23 @@ export default function Payment() {
         icon: <Truck className="w-5 h-5 text-gray-500" />,
         label: 'กำลังจัดส่ง',
         value: awaitingShipment + inTransit,
-        caption: `${awaitingShipment} รายการรอผู้ขายส่ง · ${inTransit} รายการกำลังส่ง`
+        caption: (
+          <>
+            {awaitingShipment} รายการรอผู้ขายส่ง
+            <br />
+            {inTransit} รายการกำลังส่ง
+          </>
+        )
       },
       {
         key: 'completed',
         icon: <CheckCircle2 className="w-5 h-5 text-gray-500" />,
         label: 'รับสินค้าแล้ว',
         value: completed,
-        caption: `ยอดใช้จ่ายรวม ${formatCurrency(totalSpent)}`
+        caption: `ยอดใช้จ่ายรวม ${formatCurrencyLocal(totalSpent)}`
       }
     ];
-  }, [transactions, balance, formatCurrency]);
+  }, [transactions, balance, formatCurrencyLocal]);
 
   const loadTransactions = useCallback(async () => {
     if (!user) return;
@@ -334,7 +335,7 @@ export default function Payment() {
 
       <div className="page-content">
         <div className="container order-dashboard">
-          <section className="order-summary-grid">
+          <section className="order-summary-grid payment-summary-grid">
             {summaryCards.map((card) => (
               <article key={card.key} className="order-summary-card">
                 <div className="order-summary-icon">{card.icon}</div>
@@ -413,9 +414,9 @@ export default function Payment() {
                   {filteredTransactions.map((transaction) => {
                     const statusInfo = statusMeta[transaction.status] || statusMeta.pending;
                     const detailItems = [
-                      { label: 'ราคาที่ต้องชำระ', value: formatCurrency(transaction.amount) },
-                      { label: 'ผู้ขายได้รับ', value: formatCurrency(transaction.seller_amount || 0) },
-                      { label: 'ค่าธรรมเนียมแพลตฟอร์ม', value: formatCurrency(transaction.platform_fee || 0) },
+                      { label: 'ราคาที่ต้องชำระ', value: formatCurrencyLocal(transaction.amount) },
+                      { label: 'ผู้ขายได้รับ', value: formatCurrencyLocal(transaction.seller_amount || 0) },
+                      { label: 'ค่าธรรมเนียมแพลตฟอร์ม', value: formatCurrencyLocal(transaction.platform_fee || 0) },
                       { label: 'สถานะการชำระ', value: statusInfo.label }
                     ];
                     if (transaction.paid_at) {
@@ -449,7 +450,7 @@ export default function Payment() {
                           <div className="payment-card__details">
                             <h3 className="payment-card__title">{transaction.auction_title}</h3>
                             <div className="payment-card__meta">
-                              <span className="payment-card__price">{formatCurrency(transaction.amount)}</span>
+                              <span className="payment-card__price">{formatCurrencyLocal(transaction.amount)}</span>
                             </div>
                             <div className="payment-card__meta-info">
                               <span>ชนะเมื่อ {new Date(transaction.created_at).toLocaleString('th-TH')}</span>

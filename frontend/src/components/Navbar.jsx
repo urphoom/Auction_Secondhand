@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth.js';
 import { useEffect, useRef, useState } from 'react';
 import api from '../services/api.js';
 import io from 'socket.io-client';
+import { formatCurrency } from '../utils/formatCurrency.js';
 import {
   Home as HomeIcon,
   Search,
@@ -220,7 +221,7 @@ export default function Navbar() {
                       <div className="user-menu__balance">
                         <span className="label">ยอดเงินรวม</span>
                         <span className="value">
-                          {balance !== null ? `฿${balance.toFixed(2)}` : '—'}
+                          {balance !== null ? formatCurrency(balance) : '—'}
                         </span>
                       </div>
                     </div>
