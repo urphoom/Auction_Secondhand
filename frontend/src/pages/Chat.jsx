@@ -387,7 +387,7 @@ export default function Chat() {
                         onClick={() => setShowCreateRoom(!showCreateRoom)}
                         className="btn btn-primary btn-sm"
                       >
-                        <span>New Room</span>
+                        <span>สร้างห้องแชท</span>
                       </button>
                 </div>
               </div>
@@ -396,10 +396,10 @@ export default function Chat() {
               {showCreateRoom && (
                 <div className="card mb-6">
                   <div className="card-content">
-                    <h4 className="font-semibold text-gray-900 mb-4">Create New Room</h4>
+                    <h4 className="font-semibold text-gray-900 mb-4">สร้างห้องแชทใหม่</h4>
                     <form onSubmit={createRoom} className="space-y-4">
                       <div className="form-group">
-                        <label className="form-label">Room Name</label>
+                        <label className="form-label">ชื่อห้องแชท</label>
                         <input
                           type="text"
                           value={newRoomName}
@@ -410,7 +410,7 @@ export default function Chat() {
                         />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Description</label>
+                        <label className="form-label">คำอธิบาย</label>
                         <input
                           type="text"
                           value={newRoomDesc}
@@ -421,14 +421,14 @@ export default function Chat() {
                       </div>
                       <div className="flex gap-3">
                         <button type="submit" className="btn btn-success flex-1">
-                          <span>Create</span>
+                          <span>สร้าง</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setShowCreateRoom(false)}
                           className="btn btn-secondary flex-1"
                         >
-                          <span>Cancel</span>
+                          <span>ยกเลิก</span>
                         </button>
                       </div>
                     </form>

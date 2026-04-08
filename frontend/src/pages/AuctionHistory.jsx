@@ -62,9 +62,6 @@ export default function AuctionHistory() {
       <div className="page-header">
         <div className="container">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center gap-2 mb-2 text-primary-600">
-              <History className="w-8 h-8" strokeWidth={1.5} />
-            </div>
             <h1 className="page-title">ประวัติการประมูล</h1>
             <p className="page-subtitle">
               รายการการประมูลที่คุณเคยเข้าร่วม (แสดงราคาล่าสุดที่คุณเสนอต่อการประมูลแต่ละรายการ)

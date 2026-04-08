@@ -47,6 +47,7 @@ export default function AuctionDetail() {
   const [activeTab, setActiveTab] = useState('details');
   const [buyNowModalOpen, setBuyNowModalOpen] = useState(false);
   const [bidModalOpen, setBidModalOpen] = useState(false);
+  const [bidHistoryOpen, setBidHistoryOpen] = useState(false);
 
   const socket = useMemo(() => io(SOCKET_URL), []);
 
@@ -230,9 +231,31 @@ export default function AuctionDetail() {
     ? Math.max(...bidsForHistory.map((b) => Number(b.amount)))
     : null;
 
+  const myBestBidAmount = useMemo(() => {
+    if (!user || !bidsForHistory.length) return null;
+    const mine = bidsForHistory
+      .filter((b) => Number(b.user_id) === Number(user.id))
+      .map((b) => Number(b.amount))
+      .filter((n) => Number.isFinite(n));
+    if (!mine.length) return null;
+    return Math.max(...mine);
+  }, [bidsForHistory, user]);
+
   const maskBidUsername = (username, index) => {
     const suffix = String(index + 1).padStart(3, '0');
     return `u***${suffix}`;
+  };
+
+  const formatBidDateTime = (value) => {
+    const d = new Date(value || Date.now());
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const formatRemaining = (ms) => {
@@ -484,7 +507,7 @@ export default function AuctionDetail() {
                   <div className="highest-bidder-header">
                     <h3 className="highest-bidder-title">
                       <Users className="inline-block w-5 h-5 mr-2 text-gray-400" />
-                      ผู้เสนอราคาสูงสุด
+                      ราคาสูงสุด
                     </h3>
                   </div>
                   <div className="highest-bidder-content">
@@ -524,13 +547,44 @@ export default function AuctionDetail() {
                   </div>
                 </div>
 
-                {/* Current price + remaining time */}
+                {/* Price summary + remaining time */}
                 <div className="mt-4 space-y-4">
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">ราคาปัจจุบัน</p>
-                    <p className="auction-price-main">
-                      ฿{Number(auction.current_price).toFixed(2)}
-                    </p>
+                  <div className="flex items-end justify-between gap-6">
+                    <div>
+                      <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">ราคาเปิดประมูล</p>
+                      <p className="auction-price-main">฿{Number(auction.start_price).toFixed(2)}</p>
+                      <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                        <span>{bidsForHistory.length} bids</span>
+                        <button
+                          type="button"
+                          className="text-primary-600 font-semibold hover:underline"
+                          onClick={() => setBidHistoryOpen(true)}
+                        >
+                          โชว์ประวัติการประมูล
+                        </button>
+                      </div>
+                    </div>
+                    {user && user.role !== 'admin' && auction.user_id !== user.id && (
+                      <div className="text-right">
+                        <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">ราคาที่คุณเสนอ</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {myBestBidAmount !== null ? `฿${myBestBidAmount.toFixed(2)}` : '—'}
+                        </p>
+                        {auction.bid_type === 'increment' && !ended && myBestBidAmount !== null && highestBidAmount !== null && (
+                          <p
+                            className={`mt-1 text-xs font-semibold ${
+                              Number(myBestBidAmount) === Number(highestBidAmount)
+                                ? 'text-emerald-700'
+                                : 'text-amber-700'
+                            }`}
+                          >
+                            {Number(myBestBidAmount) === Number(highestBidAmount)
+                              ? 'คุณคือผู้เสนอราคาที่สูงสุดในขณะนี้'
+                              : 'ยังไม่ใช่ราคาที่สูงสุดในขณะนี้'}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -605,7 +659,7 @@ export default function AuctionDetail() {
                         disabled={ended}
                         className="btn btn-bid-primary"
                       >
-                        {ended ? 'Auction Ended' : (auction.bid_type === 'sealed' ? 'Submit Bid' : 'Place Bid')}
+                        {ended ? 'Auction Ended' : (auction.bid_type === 'sealed' ? 'Submit Bid' : 'เสนอราคา')}
                       </button>
                     </div>
                     {error && <div className="form-error mt-2">{error}</div>}
@@ -665,14 +719,6 @@ export default function AuctionDetail() {
               >
                 <Tag className="w-4 h-4 mr-2" />
                 ข้อมูลการประมูล
-              </button>
-              <button
-                type="button"
-                className={`auction-tab-button ${activeTab === 'history' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('history')}
-              >
-                <Gavel className="w-4 h-4 mr-2" />
-                ประวัติการประมูล
               </button>
             </div>
 
@@ -794,7 +840,7 @@ export default function AuctionDetail() {
                 </div>
               )}
 
-              {activeTab === 'history' && (
+              {false && (
                 <div className="space-y-6">
                   {auction.bid_type === 'increment' ? (
                     <>
@@ -1053,6 +1099,65 @@ export default function AuctionDetail() {
                 onClick={placeBid}
               >
                 ยืนยันการบิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bid History Modal */}
+      {bidHistoryOpen && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">Bid History</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setBidHistoryOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              {bidsForHistory.length === 0 ? (
+                <div className="text-sm text-gray-600">ยังไม่มีผู้เสนอราคา</div>
+              ) : (
+                <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-white/50">
+                  <div className="grid grid-cols-2 gap-3 px-3 py-2 text-xs font-semibold text-gray-500">
+                    <div>BID AMOUNT</div>
+                    <div className="text-right">BID DATE AND TIME</div>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {[...bidsForHistory]
+                      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                      .map((b, index) => {
+                        const isHighest = highestBidAmount !== null && Number(b.amount) === highestBidAmount;
+                        return (
+                          <div
+                            key={b.id || `${b.user_id}-${b.created_at}-${b.amount}`}
+                            className="flex items-center justify-between gap-4 px-3 py-3"
+                          >
+                            <div className="min-w-0">
+                              <div className={`font-semibold ${isHighest ? 'text-primary-700' : 'text-gray-900'}`}>
+                                ฿{Number(b.amount).toFixed(2)}
+                              </div>
+                              <div className="text-xs text-gray-500">{maskBidUsername(b.username, index)}</div>
+                            </div>
+                            <div className="text-right text-sm font-medium text-gray-700 whitespace-nowrap">
+                              {formatBidDateTime(b.created_at)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setBidHistoryOpen(false)}>
+                ปิด
               </button>
             </div>
           </div>

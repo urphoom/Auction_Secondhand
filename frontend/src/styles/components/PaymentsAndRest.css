@@ -118,6 +118,15 @@
   gap: var(--space-4);
 }
 
+.topup-form--compact {
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.topup-payment-card {
+  margin-top: 2px;
+}
+
 .topup-field {
   display: flex;
   flex-direction: column;

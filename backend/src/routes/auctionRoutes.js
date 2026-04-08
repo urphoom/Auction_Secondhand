@@ -432,7 +432,7 @@ router.post('/:id/bids', authRequired, async (req, res) => {
       if (Number(user.balance) < requiredAmount) throw new Error('ยอดเงินไม่เพียงพอ');
 
       await conn.query(
-        'INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())',
+        'INSERT INTO bids (auction_id, user_id, amount) VALUES (?, ?, ?)',
         [auctionId, userId, amount]
       );
       await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [requiredAmount, userId]);

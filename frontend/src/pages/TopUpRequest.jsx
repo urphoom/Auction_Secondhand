@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Copy } from 'lucide-react';
 import api from '../services/api.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 const FILE_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+
+/** แสดงเป็นรูปแบบ 08X-XXX-XXXX — ตัวเลขจริงสำหรับคัดลอกไม่มีขีด */
+const PROMPTPAY_DISPLAY = '081-234-5678';
+const PROMPTPAY_RAW = '0812345678';
+const PROMPTPAY_ACCOUNT_NAME = 'AuctionHub Co., Ltd.';
 
 const statusMeta = {
   pending: { label: 'กำลังตรวจสอบ', tagClass: 'topup-status topup-status--pending' },
@@ -22,6 +28,8 @@ export default function TopUpRequest() {
   const [listError, setListError] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(3);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     loadRequests();
@@ -30,6 +38,25 @@ export default function TopUpRequest() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const copyPromptPay = async () => {
+    try {
+      await navigator.clipboard.writeText(PROMPTPAY_RAW);
+      setToast('คัดลอกเลขพร้อมเพย์แล้ว');
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToast(null), 2200);
+    } catch {
+      setToast('ไม่สามารถคัดลอกได้');
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToast(null), 2200);
+    }
+  };
 
   const loadRequests = async () => {
     try {
@@ -122,12 +149,23 @@ export default function TopUpRequest() {
   };
 
   return (
-    <div className="page">
+    <div className="page relative">
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-lg"
+          role="status"
+        >
+          {toast}
+        </div>
+      )}
+
       <div className="page-header">
         <div className="container">
           <div className="text-center">
             <h1 className="page-title">เติมเงินเข้าบัญชี</h1>
-            <p className="page-subtitle">อัปโหลดสลิปโอนเงินเพื่อแจ้งทีมงาน และติดตามสถานะคำขอในที่เดียว</p>
+            <p className="page-subtitle">
+              โอนเงินผ่านพร้อมเพย์ตามยอดที่กรอก แล้วแนบสลิปเพื่อให้ทีมงานตรวจสอบ
+            </p>
           </div>
         </div>
       </div>
@@ -138,7 +176,7 @@ export default function TopUpRequest() {
             <div className="card topup-card">
               <div className="card-content">
                 <h2 className="topup-section-title">ส่งคำขอเติมเงิน</h2>
-                <p className="topup-section-subtitle">กรุณากรอกจำนวนเงินและอัปโหลดหลักฐานการโอน</p>
+                <p className="topup-section-subtitle">กรอกยอด → โอนตามเลขพร้อมเพย์ → แนบสลิป</p>
 
                 {message.text && (
                   <div className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'} mt-4`}>
@@ -146,7 +184,7 @@ export default function TopUpRequest() {
                   </div>
                 )}
 
-                <form className="topup-form" onSubmit={handleSubmit}>
+                <form className="topup-form topup-form--compact" onSubmit={handleSubmit}>
                   <label className="topup-field">
                     <span>จำนวนเงินที่โอน (บาท)</span>
                     <input
@@ -159,15 +197,26 @@ export default function TopUpRequest() {
                     />
                   </label>
 
-                  <label className="topup-field">
-                    <span>หมายเหตุถึงทีมงาน (ไม่บังคับ)</span>
-                    <textarea
-                      rows="3"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      placeholder="เพิ่มรายละเอียด เช่น ช่องทางการโอน เวลาที่โอน ฯลฯ"
-                    />
-                  </label>
+                  <div className="topup-payment-card rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 sm:px-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      โอนเงินผ่านพร้อมเพย์
+                    </p>
+                    <p className="mb-2 text-sm font-bold leading-snug text-gray-900">{PROMPTPAY_ACCOUNT_NAME}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-base font-bold tracking-tight text-gray-900 sm:text-lg">
+                        {PROMPTPAY_DISPLAY}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={copyPromptPay}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                        aria-label="คัดลอกเลขพร้อมเพย์"
+                      >
+                        <Copy className="h-3.5 w-3.5" strokeWidth={2} />
+                        คัดลอก
+                      </button>
+                    </div>
+                  </div>
 
                   <label className="topup-field">
                     <span>สลิปโอนเงิน</span>
@@ -187,6 +236,16 @@ export default function TopUpRequest() {
                         </button>
                       </div>
                     )}
+                  </label>
+
+                  <label className="topup-field">
+                    <span>หมายเหตุถึงทีมงาน (ไม่บังคับ)</span>
+                    <textarea
+                      rows="2"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="เช่น เวลาที่โอน หรือรายละเอียดเพิ่มเติม"
+                    />
                   </label>
 
                   <div className="topup-actions">
@@ -323,5 +382,4 @@ export default function TopUpRequest() {
     </div>
   );
 }
-
 
