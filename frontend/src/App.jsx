@@ -11,6 +11,7 @@ import Chat from './pages/Chat.jsx';
 import Notifications from './pages/Notifications.jsx';
 import Payment from './pages/Payment.jsx';
 import OrderManagement from './pages/OrderManagement.jsx';
+import EditAuction from './pages/EditAuction.jsx';
 import AdminLayout from './pages/admin/AdminLayout.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import AdminAuctions from './pages/admin/AdminAuctions.jsx';
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/auctions/:id" element={<AuctionDetail />} />
+          <Route path="/auctions/:id/edit" element={user ? <EditAuction /> : <Navigate to="/login" />} />
           <Route path="/add" element={user ? <AddAuction /> : <Navigate to="/login" />} />
           <Route path="/chat" element={user ? <Chat /> : <Navigate to="/login" />} />
           <Route path="/notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />

@@ -376,6 +376,126 @@ router.put('/:id', authRequired, upload.single('image'), async (req, res) => {
   res.json(normalizeAuctionImages(updated[0]));
 });
 
+// Seller edit auction (only if active and no bids yet)
+router.patch(
+  '/:id/edit',
+  authRequired,
+  upload.fields([{ name: 'images', maxCount: 5 }]),
+  async (req, res) => {
+    const pool = await getPool();
+    const auctionId = Number(req.params.id);
+    const userId = req.user.id;
+
+    const { start_price, buy_now_price, end_time, keep_images } = req.body;
+
+    const numericStart = Number(start_price);
+    if (!Number.isFinite(numericStart) || numericStart <= 0) {
+      return res.status(400).json({ message: 'ราคาเริ่มต้นไม่ถูกต้อง' });
+    }
+
+    const nextEnd = new Date(end_time);
+    if (!end_time || Number.isNaN(nextEnd.getTime())) {
+      return res.status(400).json({ message: 'วันเวลาที่สิ้นสุดไม่ถูกต้อง' });
+    }
+    if (nextEnd <= new Date()) {
+      return res.status(400).json({ message: 'วันเวลาที่สิ้นสุดต้องมากกว่าเวลาปัจจุบัน' });
+    }
+
+    let buyNow = null;
+    if (buy_now_price !== undefined && buy_now_price !== null && String(buy_now_price).trim() !== '') {
+      buyNow = Number(buy_now_price);
+      if (!Number.isFinite(buyNow) || buyNow <= 0) {
+        return res.status(400).json({ message: 'ราคาซื้อทันทีไม่ถูกต้อง' });
+      }
+      if (buyNow <= numericStart) {
+        return res.status(400).json({ message: 'ราคาซื้อทันทีต้องมากกว่าราคาเริ่มต้น' });
+      }
+    }
+
+    let keep = [];
+    try {
+      if (keep_images) {
+        const parsed = typeof keep_images === 'string' ? JSON.parse(keep_images) : keep_images;
+        if (Array.isArray(parsed)) keep = parsed.filter((x) => typeof x === 'string' && x.trim());
+      }
+    } catch {
+      // ignore -> keep empty
+    }
+
+    const newFiles = Array.isArray(req.files?.images) ? req.files.images : [];
+    const newUrls = newFiles.map((f) => `/uploads/${f.filename}`);
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [auctionRows] = await conn.query('SELECT * FROM auctions WHERE id=? FOR UPDATE', [auctionId]);
+      if (!auctionRows.length) {
+        await conn.rollback();
+        return res.status(404).json({ message: 'Auction not found' });
+      }
+      const auction = auctionRows[0];
+
+      if (req.user.role !== 'admin' && auction.user_id !== userId) {
+        await conn.rollback();
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+
+      if (new Date(auction.end_time) <= new Date()) {
+        await conn.rollback();
+        return res.status(400).json({ message: 'ไม่สามารถแก้ไขได้เนื่องจากการประมูลสิ้นสุดแล้ว' });
+      }
+
+      const [[cnt]] = await conn.query('SELECT COUNT(*) AS c FROM bids WHERE auction_id=?', [auctionId]);
+      const bidCount = Number(cnt?.c || 0);
+      if (bidCount > 0) {
+        await conn.rollback();
+        return res.status(400).json({ message: 'ไม่สามารถแก้ไขข้อมูลได้เนื่องจากมีการประมูลเกิดขึ้นแล้ว' });
+      }
+
+      // Validate keep list belongs to this auction
+      const current = normalizeAuctionImages(auction);
+      const currentImages = Array.isArray(current.images) ? current.images : [];
+      const keepSet = new Set(keep);
+      const kept = currentImages.filter((u) => keepSet.has(u));
+
+      const merged = [...kept, ...newUrls].slice(0, 5);
+      if (merged.length === 0) {
+        await conn.rollback();
+        return res.status(400).json({ message: 'ต้องมีรูปสินค้าอย่างน้อย 1 รูป' });
+      }
+
+      const primary = merged[0] || null;
+
+      // If no bids, current_price should track start_price
+      await conn.query(
+        'UPDATE auctions SET start_price=?, current_price=?, buy_now_price=?, end_time=?, image=?, images=? WHERE id=?',
+        [numericStart, numericStart, buyNow, nextEnd, primary, JSON.stringify(merged), auctionId]
+      );
+
+      await conn.commit();
+      const [updated] = await pool.query(
+        `SELECT a.*,
+                u.username AS owner_username,
+                u.average_rating AS owner_average_rating,
+                u.review_count AS owner_review_count,
+                (SELECT COUNT(*) FROM bids b WHERE b.auction_id = a.id) AS bid_count
+           FROM auctions a
+           JOIN users u ON a.user_id = u.id
+          WHERE a.id=?`,
+        [auctionId]
+      );
+      res.json(normalizeAuctionImages(updated[0]));
+    } catch (e) {
+      await conn.rollback();
+      console.error('Error editing auction:', e);
+      res.status(500).json({ message: e.message || 'Failed to edit auction' });
+    } finally {
+      conn.release();
+    }
+  }
+);
+
 // Delete auction
 router.delete('/:id', authRequired, async (req, res) => {
   const pool = await getPool();

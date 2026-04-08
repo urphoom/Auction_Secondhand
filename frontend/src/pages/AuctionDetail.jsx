@@ -680,6 +680,17 @@ export default function AuctionDetail() {
                     <p className="mt-1">
                       ผู้ขายไม่สามารถบิดการประมูลของตัวเองได้ ระบบจะใช้ราคาจากผู้เข้าร่วมประมูลคนอื่นเท่านั้น
                     </p>
+                    {Number(auction.bid_count ?? 0) === 0 && !ended ? (
+                      <div className="mt-3">
+                        <Link to={`/auctions/${auction.id}/edit`} className="btn btn-secondary btn-sm">
+                          แก้ไขข้อมูลการประมูล
+                        </Link>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-amber-700">
+                        ไม่สามารถแก้ไขข้อมูลได้เนื่องจากมีการประมูลเกิดขึ้นแล้ว
+                      </p>
+                    )}
                   </div>
                 )}
 
