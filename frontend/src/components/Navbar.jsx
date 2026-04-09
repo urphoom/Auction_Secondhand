@@ -259,7 +259,7 @@ export default function Navbar() {
                 {user.role === 'admin' && (
                   <Link to="/admin/dashboard" className="nav-link">
                     <ArrowRightLeft size={16} className="nav-icon" />
-                    <span className="nav-text">Admin</span>
+                    <span className="nav-text">Admin Dashboard</span>
                   </Link>
                 )}
               </div>
@@ -297,55 +297,54 @@ export default function Navbar() {
                       </div>
                     </div>
 
-                    <div className="user-menu__section">
-                      <button
-                        type="button"
-                        className="user-menu__item"
-                        onClick={() => {
-                          navigate('/payments');
-                          setMenuOpen(false);
-                        }}
-                      >
-                        <Wallet size={16} />
-                        <span>การชำระเงิน (Payments)</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="user-menu__item"
-                        onClick={() => {
-                          navigate('/top-up');
-                          setMenuOpen(false);
-                        }}
-                        disabled={user.role === 'admin'}
-                      >
-                        <CreditCard size={16} />
-                        <span>เติมเงิน (Top Up)</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="user-menu__item"
-                        onClick={() => {
-                          navigate('/withdraw');
-                          setMenuOpen(false);
-                        }}
-                        disabled={user.role === 'admin'}
-                      >
-                        <ArrowRightLeft size={16} />
-                        <span>ถอนเงิน (Withdraw)</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="user-menu__item"
-                        onClick={() => {
-                          navigate('/auction-history');
-                          setMenuOpen(false);
-                        }}
-                        disabled={user.role === 'admin'}
-                      >
-                        <History size={16} />
-                        <span>ประวัติการประมูล</span>
-                      </button>
-                    </div>
+                    {user.role !== 'admin' && (
+                      <div className="user-menu__section">
+                        <button
+                          type="button"
+                          className="user-menu__item"
+                          onClick={() => {
+                            navigate('/payments');
+                            setMenuOpen(false);
+                          }}
+                        >
+                          <Wallet size={16} />
+                          <span>การชำระเงิน (Payments)</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="user-menu__item"
+                          onClick={() => {
+                            navigate('/top-up');
+                            setMenuOpen(false);
+                          }}
+                        >
+                          <CreditCard size={16} />
+                          <span>เติมเงิน (Top Up)</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="user-menu__item"
+                          onClick={() => {
+                            navigate('/withdraw');
+                            setMenuOpen(false);
+                          }}
+                        >
+                          <ArrowRightLeft size={16} />
+                          <span>ถอนเงิน (Withdraw)</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="user-menu__item"
+                          onClick={() => {
+                            navigate('/auction-history');
+                            setMenuOpen(false);
+                          }}
+                        >
+                          <History size={16} />
+                          <span>ประวัติการประมูล</span>
+                        </button>
+                      </div>
+                    )}
 
                     <div className="user-menu__section user-menu__section--footer">
                       <button

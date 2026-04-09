@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api.js';
 
 const formatDateTimeLocal = (value) => {
@@ -179,7 +180,12 @@ export default function AdminAuctions() {
                   {filteredAuctions.map((auction) => (
                     <tr key={auction.id}>
                       <td>
-                        <div className="admin-table-title">{auction.title}</div>
+                        <Link
+                          to={`/auctions/${auction.id}`}
+                          className="admin-table-title hover:text-primary-600 hover:underline"
+                        >
+                          {auction.title}
+                        </Link>
                         <div className="admin-table-meta">
                           ผู้ชนะล่าสุด: {auction.winner_username ?? '-'} ({auction.winning_bid_amount ?? '-'})
                         </div>

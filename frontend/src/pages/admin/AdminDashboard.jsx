@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Banknote, ClipboardList, Gavel, Users } from 'lucide-react';
 import api from '../../services/api.js';
 
@@ -95,7 +96,14 @@ export default function AdminDashboard() {
                   stats.recentTransactions.map((tx) => (
                     <div key={tx.id} className="admin-list-item">
                       <div className="admin-list-item__content">
-                        <h3>{tx.auction_title}</h3>
+                        <h3>
+                          <Link
+                            to={`/auctions/${tx.auction_id}`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {tx.auction_title}
+                          </Link>
+                        </h3>
                         <p>ผู้ชนะ: {tx.winner_username} · {new Date(tx.created_at).toLocaleString('th-TH')}</p>
                       </div>
                       <div className="admin-list-item__meta">

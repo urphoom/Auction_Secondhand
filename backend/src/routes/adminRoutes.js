@@ -94,7 +94,7 @@ router.get('/stats', async (req, res) => {
     `);
 
     const [recentTransactions] = await pool.query(`
-      SELECT pt.id, pt.amount, pt.status, pt.created_at,
+      SELECT pt.id, pt.auction_id, pt.amount, pt.status, pt.created_at,
              a.title AS auction_title,
              u.username AS winner_username
       FROM payment_transactions pt
