@@ -8,7 +8,12 @@ const router = Router();
 // Get user notifications
 router.get('/', authRequired, async (req, res) => {
   try {
-    const notifications = await NotificationService.getUserNotifications(req.user.id);
+    const adminTypes = ['topup_created', 'withdrawal_created'];
+    const notifications = await NotificationService.getUserNotifications(
+      req.user.id,
+      50,
+      req.user.role === 'admin' ? adminTypes : null
+    );
     res.json(notifications);
   } catch (error) {
     console.error('Error fetching notifications:', error);
@@ -19,7 +24,11 @@ router.get('/', authRequired, async (req, res) => {
 // Get unread notification count
 router.get('/unread-count', authRequired, async (req, res) => {
   try {
-    const count = await NotificationService.getUnreadCount(req.user.id);
+    const adminTypes = ['topup_created', 'withdrawal_created'];
+    const count = await NotificationService.getUnreadCount(
+      req.user.id,
+      req.user.role === 'admin' ? adminTypes : null
+    );
     res.json({ count });
   } catch (error) {
     console.error('Error fetching unread count:', error);

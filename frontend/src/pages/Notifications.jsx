@@ -105,7 +105,11 @@ export default function Notifications() {
   };
 
   const handleTopUpClick = () => {
-    navigate('/top-up');
+    navigate(user?.role === 'admin' ? '/admin/top-ups' : '/top-up');
+  };
+
+  const handleWithdrawalClick = () => {
+    navigate(user?.role === 'admin' ? '/admin/withdrawals' : '/withdraw');
   };
 
   const handleChatRoomClick = async (notification) => {
@@ -291,7 +295,7 @@ export default function Notifications() {
                                       <div>ยอดเงิน: ฿{Number(contextData.amount).toFixed(2)}</div>
                                     )}
                                     {contextData.requestId !== undefined && (
-                                      <div>คำขอ #{contextData.requestId}</div>
+                                      <div>รหัสคำขอ #{contextData.requestId}</div>
                                     )}
                                     {contextData.note && (
                                       <div>หมายเหตุ: {contextData.note}</div>
@@ -323,6 +327,14 @@ export default function Notifications() {
                               className="btn btn-secondary btn-sm"
                             >
                               ไปยังคำขอเติมเงิน
+                            </button>
+                          )}
+                          {(notification.type === 'withdrawal_created' || notification.type === 'withdrawal_approved' || notification.type === 'withdrawal_rejected') && (
+                            <button
+                              onClick={handleWithdrawalClick}
+                              className="btn btn-secondary btn-sm"
+                            >
+                              ไปยังคำขอถอนเงิน
                             </button>
                           )}
                           {!notification.is_read && (

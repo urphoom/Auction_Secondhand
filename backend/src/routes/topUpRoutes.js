@@ -95,6 +95,27 @@ router.post('/', authRequired, upload.single('slip'), async (req, res) => {
       }
     }, io);
 
+    // Notify all admins about new top-up request
+    try {
+      const [admins] = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+      await Promise.all(
+        (admins || []).map((admin) =>
+          NotificationService.createNotification(
+            {
+              userId: admin.id,
+              type: 'topup_created',
+              title: 'มีคำขอเติมเงินใหม่',
+              message: `มีผู้ใช้ส่งคำขอเติมเงิน ฿${numericAmount.toFixed(2)} รอตรวจสอบ`,
+              context: { requestId: result.insertId, amount: numericAmount, fromUserId: req.user.id }
+            },
+            io
+          )
+        )
+      );
+    } catch (e) {
+      console.warn('Failed to notify admins (topup_created):', e.message);
+    }
+
     res.status(201).json(rows[0]);
   } catch (error) {
     fs.unlink(req.file.path, () => {});

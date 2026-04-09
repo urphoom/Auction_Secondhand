@@ -113,6 +113,27 @@ router.post('/', authRequired, async (req, res) => {
       io
     );
 
+    // Notify all admins about new withdrawal request
+    try {
+      const [admins] = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+      await Promise.all(
+        (admins || []).map((admin) =>
+          NotificationService.createNotification(
+            {
+              userId: admin.id,
+              type: 'withdrawal_created',
+              title: 'มีคำขอถอนเงินใหม่',
+              message: `มีผู้ใช้ส่งคำขอถอนเงิน ฿${numericAmount.toFixed(2)} รอตรวจสอบ`,
+              context: { requestId: result.insertId, amount: numericAmount, fromUserId: req.user.id }
+            },
+            io
+          )
+        )
+      );
+    } catch (e) {
+      console.warn('Failed to notify admins (withdrawal_created):', e.message);
+    }
+
     const [rows] = await pool.query('SELECT * FROM withdrawal_requests WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
   } catch (error) {

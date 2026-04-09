@@ -441,18 +441,26 @@ export class NotificationService {
     }
   }
 
-  static async getUserNotifications(userId, limit = 50) {
+  static async getUserNotifications(userId, limit = 50, types = null) {
     const pool = await getPool();
 
     try {
+      const params = [userId];
+      const typeFilter =
+        Array.isArray(types) && types.length
+          ? ` AND n.type IN (${types.map(() => '?').join(', ')})`
+          : '';
+      if (Array.isArray(types) && types.length) params.push(...types);
+      params.push(limit);
+
       const [notifications] = await pool.query(`
         SELECT n.*, a.title as auction_title, a.image as auction_image
         FROM notifications n
         LEFT JOIN auctions a ON n.auction_id = a.id
-        WHERE n.user_id = ?
+        WHERE n.user_id = ?${typeFilter}
         ORDER BY n.created_at DESC
         LIMIT ?
-      `, [userId, limit]);
+      `, params);
       return notifications.map((entry) => {
         if (entry.context && typeof entry.context === 'string') {
           try {
@@ -497,15 +505,22 @@ export class NotificationService {
     }
   }
 
-  static async getUnreadCount(userId) {
+  static async getUnreadCount(userId, types = null) {
     const pool = await getPool();
     
     try {
+      const params = [userId];
+      const typeFilter =
+        Array.isArray(types) && types.length
+          ? ` AND type IN (${types.map(() => '?').join(', ')})`
+          : '';
+      if (Array.isArray(types) && types.length) params.push(...types);
+
       const [result] = await pool.query(`
         SELECT COUNT(*) as count
         FROM notifications 
-        WHERE user_id = ? AND is_read = FALSE
-      `, [userId]);
+        WHERE user_id = ? AND is_read = FALSE${typeFilter}
+      `, params);
       
       return result[0].count;
     } catch (error) {
