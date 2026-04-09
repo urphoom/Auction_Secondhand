@@ -15,15 +15,15 @@ class AuctionChecker {
     if (this.isRunning) return;
     
     this.isRunning = true;
-    console.log('Auction checker started - checking for ended auctions every 30 seconds');
+    console.log('Auction checker started - checking for ended auctions every 15 seconds');
     
     // Check immediately on start
     this.checkEndedAuctions();
     
-    // Then check every 30 seconds
+    // Then check every 15 seconds
     this.intervalId = setInterval(() => {
       this.checkEndedAuctions();
-    }, 30000); // 30 seconds
+    }, 15000); // 15 seconds
   }
 
   stop() {

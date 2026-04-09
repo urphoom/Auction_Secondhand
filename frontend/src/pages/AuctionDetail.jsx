@@ -49,6 +49,7 @@ export default function AuctionDetail() {
   const [buyNowModalOpen, setBuyNowModalOpen] = useState(false);
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [bidHistoryOpen, setBidHistoryOpen] = useState(false);
+  const [endOverlay, setEndOverlay] = useState(null); // { kind: 'won'|'lost', text: string } | null
 
   const socket = useMemo(() => io(SOCKET_URL), []);
 
@@ -161,17 +162,34 @@ export default function AuctionDetail() {
         });
         api.get(`/auctions/${id}/top-bidders`).then(({ data }) => setTopBidders(data));
         
-        // Set winner info
-        setWinnerInfo({
-          username: winnerUsername,
-          amount: finalPrice,
-          isCurrentUser: user && user.id === winnerId
-        });
-        
-        // Check if current user is winner
-        if (user && user.id === winnerId) {
-          setIsWinner(true);
-          checkPaymentTransaction();
+        // Set winner info (if any)
+        if (winnerId) {
+          setWinnerInfo({
+            username: winnerUsername,
+            amount: finalPrice,
+            isCurrentUser: user && user.id === winnerId
+          });
+
+          // Check if current user is winner
+          if (user && user.id === winnerId) {
+            setIsWinner(true);
+            checkPaymentTransaction();
+            // Winner overlay (no winner name shown)
+            setEndOverlay({ kind: 'won', text: 'ยินดีด้วยคุณชนะการประมูลนี้' });
+          } else if (user && auction && user.id !== auction.user_id) {
+            // Loser overlay: show only if user actually bid (important for sealed auctions)
+            api
+              .get(`/auctions/${id}/has-bid`)
+              .then(({ data }) => {
+                if (data?.hasBid) {
+                  setEndOverlay({ kind: 'lost', text: 'การประมูลจบแล้ว คุณไม่ได้เป็นผู้ชนะ' });
+                }
+              })
+              .catch(() => {});
+          }
+        } else {
+          setWinnerInfo(null);
+          setIsWinner(false);
         }
       }
     };
@@ -226,6 +244,7 @@ export default function AuctionDetail() {
   }, [auction, now]);
 
   const ended = endsIn <= 0;
+  const [finalizeRequested, setFinalizeRequested] = useState(false);
 
   const bidsForHistory = auction?.bids || [];
   const highestBidAmount = bidsForHistory.length
@@ -273,6 +292,16 @@ export default function AuctionDetail() {
     parts.push(`${seconds} วินาที`);
     return parts.join(' ');
   };
+
+  // When countdown reaches 0, ask backend to finalize immediately (winner/loser notifications + socket event).
+  useEffect(() => {
+    if (!auction) return;
+    if (!ended) return;
+    if (finalizeRequested) return;
+
+    setFinalizeRequested(true);
+    api.post(`/auctions/${id}/finalize`).catch(() => {});
+  }, [auction, ended, finalizeRequested, id]);
 
   const fmtMoney = (v) => formatCurrency(v);
 
@@ -1162,7 +1191,6 @@ export default function AuctionDetail() {
                               <div className={`font-semibold ${isHighest ? 'text-primary-700' : 'text-gray-900'}`}>
                                 {fmtMoney(b.amount)}
                               </div>
-                              <div className="text-xs text-gray-500">{maskBidUsername(b.username, index)}</div>
                             </div>
                             <div className="text-right text-sm font-medium text-gray-700 whitespace-nowrap">
                               {formatBidDateTime(b.created_at)}
@@ -1176,6 +1204,53 @@ export default function AuctionDetail() {
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setBidHistoryOpen(false)}>
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auction End Result Overlay (winner/loser) */}
+      {endOverlay && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setEndOverlay(null)}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 640 }}
+          >
+            <div className="modal-header">
+              <h2 className="modal-title">ผลการประมูล</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setEndOverlay(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div
+                className="flex items-center justify-center text-center"
+                style={{ minHeight: 180 }}
+              >
+                <p
+                  className={`text-2xl font-semibold ${
+                    endOverlay.kind === 'won' ? 'text-emerald-800' : 'text-gray-800'
+                  }`}
+                >
+                  {endOverlay.text}
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setEndOverlay(null)}>
                 ปิด
               </button>
             </div>

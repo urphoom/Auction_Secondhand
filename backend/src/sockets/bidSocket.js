@@ -45,22 +45,23 @@ export function registerBidSocketHandlers(io, socket) {
         if (Number(amount) < Number(auction.start_price)) throw new Error('Bid must be at least the starting price');
       }
 
+      // We keep bid history (insert every time). Deduct only the additional amount
+      // compared to bidder's previous best bid for this auction.
       let additionalAmount = Number(amount);
-      const [existingBid] = await conn.query('SELECT id, amount FROM bids WHERE auction_id = ? AND user_id = ?', [auctionId, userId]);
-
-      if (existingBid.length > 0) {
-        const previousAmount = Number(existingBid[0].amount);
-        additionalAmount = Number(amount) - previousAmount;
+      const [bestRows] = await conn.query(
+        'SELECT MAX(amount) AS best_amount FROM bids WHERE auction_id = ? AND user_id = ? FOR UPDATE',
+        [auctionId, userId]
+      );
+      const previousBest = Number(bestRows?.[0]?.best_amount || 0);
+      if (previousBest > 0) {
+        additionalAmount = Number(amount) - previousBest;
         if (additionalAmount <= 0) throw new Error('New bid must be higher than your previous bid');
       }
 
       if (Number(bidder.balance) < additionalAmount) throw new Error('Insufficient balance');
 
-      if (existingBid.length > 0) {
-        await conn.query('UPDATE bids SET amount = ? WHERE id = ?', [amount, existingBid[0].id]);
-      } else {
-        await conn.query('INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())', [auctionId, userId, amount]);
-      }
+      // Always insert to preserve history
+      await conn.query('INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())', [auctionId, userId, amount]);
       if (auction.bid_type === 'increment') {
         await conn.query('UPDATE auctions SET current_price=? WHERE id=?', [amount, auctionId]);
       }

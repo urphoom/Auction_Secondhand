@@ -248,6 +248,37 @@ router.get('/my-bid-history', authRequired, async (req, res) => {
   res.json(payload);
 });
 
+// Check if current user has any bids on an auction (used for popup/overlay)
+router.get('/:id/has-bid', authRequired, async (req, res) => {
+  const pool = await getPool();
+  const auctionId = Number(req.params.id);
+  const userId = req.user.id;
+  const [[row]] = await pool.query(
+    'SELECT EXISTS(SELECT 1 FROM bids WHERE auction_id=? AND user_id=? LIMIT 1) AS has_bid',
+    [auctionId, userId]
+  );
+  res.json({ hasBid: Boolean(row?.has_bid) });
+});
+
+// Finalize ended auction immediately (idempotent).
+// Used by frontend when countdown reaches 0 to trigger winner/loser notifications instantly.
+router.post('/:id/finalize', async (req, res) => {
+  const pool = await getPool();
+  const io = req.app.get('io');
+  const auctionId = Number(req.params.id);
+
+  const [rows] = await pool.query('SELECT * FROM auctions WHERE id=?', [auctionId]);
+  if (!rows.length) return res.status(404).json({ message: 'Auction not found' });
+  const auction = rows[0];
+
+  if (new Date(auction.end_time) > new Date()) {
+    return res.status(400).json({ message: 'Auction has not ended yet' });
+  }
+
+  await NotificationService.processAuctionEnd(auction, io);
+  res.json({ ok: true });
+});
+
 // Get one
 router.get('/:id', async (req, res) => {
   const pool = await getPool();
@@ -547,40 +578,38 @@ router.post('/:id/bids', authRequired, async (req, res) => {
       if (amount < Number(auction.start_price)) throw new Error('Bid must be at least the starting price');
     }
     
-    const [existingBid] = await conn.query('SELECT id, amount FROM bids WHERE auction_id=? AND user_id=?', [auctionId, userId]);
+    // Keep full bid history. For increment bids we only charge the difference
+    // compared to bidder's previous best bid.
+    const [bestRows] = await conn.query(
+      'SELECT MAX(amount) AS best_amount FROM bids WHERE auction_id=? AND user_id=? FOR UPDATE',
+      [auctionId, userId]
+    );
+    const previousBest = Number(bestRows?.[0]?.best_amount || 0);
 
     if (auction.bid_type === 'sealed') {
-      // In sealed bidding, each user can only place ONE bid per auction.
-      if (existingBid.length > 0) {
-        throw new Error('You have already placed a sealed bid on this auction');
-      }
-
-      const requiredAmount = amount;
-      if (Number(user.balance) < requiredAmount) throw new Error('ยอดเงินไม่เพียงพอ');
-
-      await conn.query(
-        'INSERT INTO bids (auction_id, user_id, amount) VALUES (?, ?, ?)',
-        [auctionId, userId, amount]
-      );
-      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [requiredAmount, userId]);
-    } else {
-      // Increment bidding can adjust previous bid, only paying the difference
-      const previousAmount = existingBid.length > 0 ? Number(existingBid[0].amount) : 0;
-      const additionalAmount = existingBid.length > 0 ? amount - previousAmount : amount;
+      // Sealed bidding: allow multiple bids, but deduct only the extra vs previous best
+      const additionalAmount = previousBest > 0 ? amount - previousBest : amount;
       if (additionalAmount <= 0) throw new Error('New bid must be higher than your previous bid');
 
       if (Number(user.balance) < additionalAmount) throw new Error('ยอดเงินไม่เพียงพอ');
 
-      if (existingBid.length > 0) {
-        await conn.query('UPDATE bids SET amount = ? WHERE id = ?', [amount, existingBid[0].id]);
-        await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
-      } else {
-        await conn.query(
-          'INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())',
-          [auctionId, userId, amount]
-        );
-        await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
-      }
+      await conn.query(
+        'INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())',
+        [auctionId, userId, amount]
+      );
+      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
+    } else {
+      // Increment bidding: insert every time, pay only the difference vs previous best
+      const additionalAmount = previousBest > 0 ? amount - previousBest : amount;
+      if (additionalAmount <= 0) throw new Error('New bid must be higher than your previous bid');
+
+      if (Number(user.balance) < additionalAmount) throw new Error('ยอดเงินไม่เพียงพอ');
+
+      await conn.query(
+        'INSERT INTO bids (auction_id, user_id, amount, created_at) VALUES (?, ?, ?, NOW())',
+        [auctionId, userId, amount]
+      );
+      await conn.query('UPDATE users SET balance = balance - ? WHERE id=?', [additionalAmount, userId]);
     }
     await conn.commit();
     res.json({ ok: true, newPrice: auction.bid_type === 'increment' ? amount : auction.current_price });

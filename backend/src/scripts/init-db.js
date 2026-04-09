@@ -367,7 +367,7 @@ async function main() {
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
       auction_id INT UNSIGNED NULL,
-      type ENUM('auction_won', 'auction_ended', 'outbid', 'bid_refunded', 'topup_created', 'topup_approved', 'topup_rejected', 'withdrawal_created', 'withdrawal_approved', 'withdrawal_rejected') NOT NULL,
+      type ENUM('auction_won', 'auction_lost', 'auction_ended', 'outbid', 'bid_refunded', 'topup_created', 'topup_approved', 'topup_rejected', 'withdrawal_created', 'withdrawal_approved', 'withdrawal_rejected') NOT NULL,
       title VARCHAR(255) NOT NULL,
       message TEXT NOT NULL,
       context JSON NULL,
@@ -386,7 +386,7 @@ async function main() {
     if (err.code !== 'ER_BAD_FIELD_ERROR') console.warn('Could not alter notifications auction_id:', err.message);
   }
   try {
-    await pool.query("ALTER TABLE notifications MODIFY COLUMN type ENUM('auction_won', 'auction_ended', 'outbid', 'bid_refunded', 'topup_created', 'topup_approved', 'topup_rejected', 'withdrawal_created', 'withdrawal_approved', 'withdrawal_rejected') NOT NULL");
+    await pool.query("ALTER TABLE notifications MODIFY COLUMN type ENUM('auction_won', 'auction_lost', 'auction_ended', 'outbid', 'bid_refunded', 'topup_created', 'topup_approved', 'topup_rejected', 'withdrawal_created', 'withdrawal_approved', 'withdrawal_rejected') NOT NULL");
   } catch (err) {
     console.warn('Could not update notifications type enum:', err.message);
   }

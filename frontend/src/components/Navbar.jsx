@@ -29,6 +29,7 @@ export default function Navbar() {
   const [balance, setBalance] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const [resultModal, setResultModal] = useState(null); // { kind: 'won'|'lost', auctionId?: number|null, text: string } | null
 
   useEffect(() => {
     if (!user) return;
@@ -41,10 +42,27 @@ export default function Navbar() {
     newSocket.emit('joinNotifications', user.id);
 
     // Listen for new notifications
-    newSocket.on('newNotification', () => {
+    newSocket.on('newNotification', (notification) => {
       setUnreadCount(prev => prev + 1);
       // Many notifications come with balance changes (refunds/topups/withdrawals/etc.)
       loadBalance();
+
+      const type = notification?.type;
+      if (type === 'auction_won' || type === 'auction_lost') {
+        const auctionId = notification?.auction_id;
+        const auctionTitle = (notification?.auction_title || '').trim();
+        const auctionLabel = auctionTitle ? `“${auctionTitle}”` : (auctionId ? `การประมูล #${auctionId}` : 'การประมูลนี้');
+        const text =
+          type === 'auction_won'
+            ? `${auctionLabel} จบแล้ว คุณชนะการประมูล`
+            : `${auctionLabel} จบแล้ว คุณไม่ได้เป็นผู้ชนะ`;
+
+        setResultModal({
+          kind: type === 'auction_won' ? 'won' : 'lost',
+          auctionId: auctionId != null ? Number(auctionId) : null,
+          text
+        });
+      }
     });
 
     // Load initial unread count
@@ -132,7 +150,60 @@ export default function Navbar() {
   }, [user]);
   
   return (
-    <nav className="navbar">
+    <>
+      {resultModal && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setResultModal(null)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">ผลการประมูล</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setResultModal(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="flex items-center justify-center text-center" style={{ minHeight: 160 }}>
+                <p
+                  className={`text-2xl font-semibold ${
+                    resultModal.kind === 'won' ? 'text-emerald-800' : 'text-gray-800'
+                  }`}
+                >
+                  {resultModal.text}
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setResultModal(null)}>
+                ปิด
+              </button>
+              {resultModal.auctionId ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const aid = resultModal.auctionId;
+                    setResultModal(null);
+                    navigate(`/auctions/${aid}`);
+                  }}
+                >
+                  ดูการประมูล
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <nav className="navbar">
       <div className="navbar-content">
         {/* Modern Brand */}
         <Link to="/" className="brand">
@@ -310,6 +381,7 @@ export default function Navbar() {
 
         
       </div>
-    </nav>
+      </nav>
+    </>
   );
 }

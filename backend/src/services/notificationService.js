@@ -195,6 +195,15 @@ export class NotificationService {
         const chatRoomId = await this.createWinnerChatRoom(auction, winner, conn);
         console.log(`✅ Successfully created/found chat room ${chatRoomId} for auction ${auction.id}`);
 
+        // Persist winner + ended status on auction
+        await conn.query(
+          `UPDATE auctions
+              SET status = 'ended',
+                  winner_id = ?
+            WHERE id = ?`,
+          [winner.user_id, auction.id]
+        );
+
         // Create payment transaction for winner
         await this.createPaymentTransaction(auction, winner, conn);
 
@@ -259,9 +268,73 @@ export class NotificationService {
           }
         }
 
+        // Notify all non-winners that they lost
+        const loserIds = Array.from(
+          new Set(allBids.map((b) => Number(b.user_id)).filter((uid) => uid && uid !== Number(winner.user_id)))
+        );
+
+        for (const loserId of loserIds) {
+          const [existingLoserNotification] = await conn.query(
+            `
+              SELECT id FROM notifications
+              WHERE user_id = ? AND auction_id = ? AND type = 'auction_lost'
+              FOR UPDATE
+            `,
+            [loserId, auction.id]
+          );
+
+          if (existingLoserNotification.length === 0) {
+            const [loserNotificationResult] = await conn.query(
+              `
+                INSERT INTO notifications (user_id, auction_id, type, title, message)
+                VALUES (?, ?, ?, ?, ?)
+              `,
+              [
+                loserId,
+                auction.id,
+                'auction_lost',
+                '❌ แพ้การประมูล',
+                `การประมูล "${auction.title}" สิ้นสุดแล้ว คุณไม่ได้เป็นผู้ชนะ`
+              ]
+            );
+
+            const [loserNotification] = await conn.query(
+              `
+                SELECT n.*, a.title as auction_title, a.image as auction_image
+                FROM notifications n
+                JOIN auctions a ON n.auction_id = a.id
+                WHERE n.id = ?
+              `,
+              [loserNotificationResult.insertId]
+            );
+
+            if (io && loserNotification.length > 0) {
+              sendNotificationToUser(io, loserId, loserNotification[0]);
+            }
+          }
+        }
+
         console.log(`Auction ${auction.id} ended. Winner: ${winner.username}`);
+
+        // Broadcast end result to anyone currently viewing the auction
+        if (io) {
+          io.to(`auction:${auction.id}`).emit('auctionEnded', {
+            auctionId: auction.id,
+            winnerId: winner.user_id,
+            winnerUsername: winner.username,
+            finalPrice: Number(winner.amount)
+          });
+        }
       } else {
         // No bids - check if notification already exists, then notify auction owner
+        await conn.query(
+          `UPDATE auctions
+              SET status = 'ended',
+                  winner_id = NULL
+            WHERE id = ?`,
+          [auction.id]
+        );
+
         const [existingNoBidsNotification] = await conn.query(`
           SELECT id FROM notifications 
           WHERE user_id = ? AND auction_id = ? AND type = 'auction_ended'
@@ -288,6 +361,16 @@ export class NotificationService {
         }
 
         console.log(`Auction ${auction.id} ended with no bids`);
+
+        // Broadcast end result (no winner)
+        if (io) {
+          io.to(`auction:${auction.id}`).emit('auctionEnded', {
+            auctionId: auction.id,
+            winnerId: null,
+            winnerUsername: null,
+            finalPrice: null
+          });
+        }
       }
       
       // Handle case where sealed auction has no bids - no refunds needed
