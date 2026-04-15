@@ -36,10 +36,10 @@ router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const pool = await getPool();
   const [rows] = await pool.query('SELECT * FROM users WHERE username=?', [username]);
-  if (!rows.length) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!rows.length) return res.status(401).json({ message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
   const user = rows[0];
   const ok = await bcrypt.compare(password, user.password);
-  if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!ok) return res.status(401).json({ message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET || 'dev_secret', { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
 });

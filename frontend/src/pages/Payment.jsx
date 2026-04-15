@@ -233,6 +233,16 @@ export default function Payment() {
     return `กรอกที่อยู่สำหรับ "${shippingModal.transaction.auction_title}"`;
   }, [shippingModal.transaction]);
 
+  // Close modal on Escape for better UX
+  useEffect(() => {
+    if (!shippingModal.open) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') closeShippingModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [shippingModal.open]);
+
   const openShippingModal = (transaction) => {
     setShippingErrors({});
     setShippingForm({
@@ -589,83 +599,124 @@ export default function Payment() {
       </div>
 
       {shippingModal.open && (
-        <div className="confirmation-dialog" role="dialog" aria-modal="true">
-          <div className="confirmation-dialog-content">
+        <div
+          className="confirmation-dialog"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeShippingModal}
+        >
+          <div className="confirmation-dialog-content" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
-              <h2 className="dialog-title">{shippingModalTitle}</h2>
+              <div className="dialog-header__text">
+                <h2 className="dialog-title">{shippingModalTitle}</h2>
+                <p className="dialog-subtitle">
+                  ตรวจสอบให้ถูกต้องเพื่อให้ผู้ขายจัดส่งได้เร็วและไม่ผิดที่อยู่
+                </p>
+              </div>
               <button type="button" className="dialog-close-btn" onClick={closeShippingModal} aria-label="Close">
                 ×
               </button>
             </div>
-            <form onSubmit={handleShippingSubmit} className="dialog-body space-y-4">
-              <div>
-                <label className="form-label">ชื่อผู้รับ *</label>
-                <input
-                  type="text"
-                  value={shippingForm.recipientName}
-                  onChange={(e) => handleShippingChange('recipientName', e.target.value)}
-                  className={`form-input ${shippingErrors.recipientName ? 'error' : ''}`}
-                  placeholder="เช่น ก้องภพ ใจดี"
-                  disabled={shippingSubmitting}
-                  required
-                />
-                {shippingErrors.recipientName && <p className="form-error">{shippingErrors.recipientName}</p>}
-              </div>
+            <form onSubmit={handleShippingSubmit} className="dialog-body">
+              {shippingModal.transaction ? (
+                <div className="dialog-summary">
+                  <div className="dialog-summary__row">
+                    <span className="dialog-summary__label">รายการ</span>
+                    <span className="dialog-summary__value">{shippingModal.transaction.auction_title}</span>
+                  </div>
+                  <div className="dialog-summary__row">
+                    <span className="dialog-summary__label">ยอดชำระ</span>
+                    <span className="dialog-summary__value dialog-summary__value--money">
+                      {formatCurrency(Number(shippingModal.transaction.amount || 0))}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
 
-              <div>
-                <label className="form-label">เบอร์โทรผู้รับ *</label>
-                <input
-                  type="tel"
-                  value={shippingForm.recipientPhone}
-                  onChange={(e) => handleShippingChange('recipientPhone', e.target.value)}
-                  className={`form-input ${shippingErrors.recipientPhone ? 'error' : ''}`}
-                  placeholder="เช่น 0812345678"
-                  disabled={shippingSubmitting}
-                  required
-                />
-                {shippingErrors.recipientPhone && <p className="form-error">{shippingErrors.recipientPhone}</p>}
-              </div>
+              <div className="dialog-grid">
+                <div className="dialog-field">
+                  <label className="form-label">
+                    ชื่อผู้รับ <span className="dialog-required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={shippingForm.recipientName}
+                    onChange={(e) => handleShippingChange('recipientName', e.target.value)}
+                    className={`form-input ${shippingErrors.recipientName ? 'error' : ''}`}
+                    placeholder="เช่น ก้องภพ ใจดี"
+                    disabled={shippingSubmitting}
+                    required
+                    autoFocus
+                    autoComplete="name"
+                  />
+                  {shippingErrors.recipientName && <p className="form-error">{shippingErrors.recipientName}</p>}
+                </div>
 
-              <div>
-                <label className="form-label">ที่อยู่สำหรับจัดส่ง *</label>
-                <textarea
-                  rows="4"
-                  value={shippingForm.shippingAddress}
-                  onChange={(e) => handleShippingChange('shippingAddress', e.target.value)}
-                  className={`form-textarea ${shippingErrors.shippingAddress ? 'error' : ''}`}
-                  placeholder="บ้านเลขที่/หมู่บ้าน/ถนน/ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์"
-                  disabled={shippingSubmitting}
-                  required
-                />
-                {shippingErrors.shippingAddress && <p className="form-error">{shippingErrors.shippingAddress}</p>}
-              </div>
+                <div className="dialog-field">
+                  <label className="form-label">
+                    เบอร์โทรผู้รับ <span className="dialog-required">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={shippingForm.recipientPhone}
+                    onChange={(e) => handleShippingChange('recipientPhone', e.target.value)}
+                    className={`form-input ${shippingErrors.recipientPhone ? 'error' : ''}`}
+                    placeholder="เช่น 0812345678"
+                    disabled={shippingSubmitting}
+                    required
+                    autoComplete="tel"
+                  />
+                  {shippingErrors.recipientPhone && <p className="form-error">{shippingErrors.recipientPhone}</p>}
+                </div>
 
-              <div>
-                <label className="form-label">วิธีการจัดส่ง *</label>
-                <select
-                  value={shippingForm.shippingMethod}
-                  onChange={(e) => handleShippingChange('shippingMethod', e.target.value)}
-                  className="form-select"
-                  disabled={shippingSubmitting}
-                  required
-                >
-                  <option value="standard">จัดส่งมาตรฐาน (3-5 วัน)</option>
-                  <option value="express">จัดส่งด่วน (1-2 วัน)</option>
-                  <option value="ems">EMS / ลงทะเบียน</option>
-                  <option value="pickup">รับสินค้าที่หน้าร้าน/นัดรับ</option>
-                </select>
-              </div>
+                <div className="dialog-field dialog-field--full">
+                  <label className="form-label">
+                    ที่อยู่สำหรับจัดส่ง <span className="dialog-required">*</span>
+                  </label>
+                  <textarea
+                    rows="4"
+                    value={shippingForm.shippingAddress}
+                    onChange={(e) => handleShippingChange('shippingAddress', e.target.value)}
+                    className={`form-textarea ${shippingErrors.shippingAddress ? 'error' : ''}`}
+                    placeholder="บ้านเลขที่/หมู่บ้าน/ถนน/ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์"
+                    disabled={shippingSubmitting}
+                    required
+                    autoComplete="street-address"
+                  />
+                  {shippingErrors.shippingAddress && <p className="form-error">{shippingErrors.shippingAddress}</p>}
+                </div>
 
-              <div>
-                <label className="form-label">หมายเหตุเพิ่มเติม (ถ้ามี)</label>
-                <textarea
-                  rows="3"
-                  value={shippingForm.shippingNote}
-                  onChange={(e) => handleShippingChange('shippingNote', e.target.value)}
-                  className="form-textarea"
-                  placeholder="เช่น กรุณาติดต่อก่อนจัดส่ง"
-                  disabled={shippingSubmitting}
-                />
+                <div className="dialog-field dialog-field--full">
+                  <label className="form-label">
+                    วิธีการจัดส่ง <span className="dialog-required">*</span>
+                  </label>
+                  <select
+                    value={shippingForm.shippingMethod}
+                    onChange={(e) => handleShippingChange('shippingMethod', e.target.value)}
+                    className="form-select"
+                    disabled={shippingSubmitting}
+                    required
+                  >
+                    <option value="standard">จัดส่งมาตรฐาน (3-5 วัน)</option>
+                    <option value="express">จัดส่งด่วน (1-2 วัน)</option>
+                    <option value="ems">EMS / ลงทะเบียน</option>
+                    <option value="pickup">รับสินค้าที่หน้าร้าน/นัดรับ</option>
+                  </select>
+                </div>
+
+                <div className="dialog-field dialog-field--full">
+                  <label className="form-label">
+                    หมายเหตุเพิ่มเติม <span className="dialog-optional">(ถ้ามี)</span>
+                  </label>
+                  <textarea
+                    rows="3"
+                    value={shippingForm.shippingNote}
+                    onChange={(e) => handleShippingChange('shippingNote', e.target.value)}
+                    className="form-textarea"
+                    placeholder="เช่น กรุณาติดต่อก่อนจัดส่ง"
+                    disabled={shippingSubmitting}
+                  />
+                </div>
               </div>
 
               <div className="dialog-footer">
