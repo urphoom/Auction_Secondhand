@@ -16,6 +16,11 @@ async function main() {
   `);
   // In case the table exists without balance column (older deployments)
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS balance DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+  // Profile fields (older deployments may not have these)
+  try { await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20) DEFAULT NULL"); } catch {}
+  try { await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) DEFAULT NULL"); } catch {}
+  try { await pool.query("CREATE UNIQUE INDEX uq_users_email ON users(email)"); } catch {}
+  try { await pool.query("CREATE UNIQUE INDEX uq_users_phone ON users(phone)"); } catch {}
   // Trust / rating cache
   try { await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS average_rating DECIMAL(3,2) NOT NULL DEFAULT 0.00"); } catch {}
   try { await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS review_count INT NOT NULL DEFAULT 0"); } catch {}

@@ -16,6 +16,7 @@ import {
   History,
   LogOut,
   ArrowRightLeft,
+  UserCog,
   LayoutDashboard
 } from 'lucide-react';
 
@@ -282,9 +283,9 @@ export default function Navbar() {
                   </div>
                   <div className="user-details">
                     <span className="user-name">{user.username}</span>
-                    <span className={`user-role-badge ${user.role === 'admin' ? 'is-admin' : 'is-user'}`}>
-                      {user.role === 'admin' ? 'ADMIN' : 'USER'}
-                    </span>
+                    {user.role === 'admin' ? (
+                      <span className="user-role-badge is-admin">ADMIN</span>
+                    ) : null}
                   </div>
                 </button>
 
@@ -292,15 +293,27 @@ export default function Navbar() {
                   <div className="user-menu__panel">
                     <div className="user-menu__section user-menu__section--header">
                       <div className="user-menu__name">{user.username}</div>
-                      <div className={`user-role-badge ${user.role === 'admin' ? 'is-admin' : 'is-user'}`}>
-                        {user.role === 'admin' ? 'ADMIN' : 'USER'}
-                      </div>
+                      {user.role === 'admin' ? <div className="user-role-badge is-admin">ADMIN</div> : null}
                       <div className="user-menu__balance">
                         <span className="label">ยอดเงินรวม</span>
                         <span className="value">
                           {balance !== null ? formatCurrency(balance) : '—'}
                         </span>
                       </div>
+                    </div>
+
+                    <div className="user-menu__section">
+                      <button
+                        type="button"
+                        className="user-menu__item"
+                        onClick={() => {
+                          navigate('/profile');
+                          setMenuOpen(false);
+                        }}
+                      >
+                        <UserCog size={16} />
+                        <span>จัดการโปรไฟล์</span>
+                      </button>
                     </div>
 
                     {user.role !== 'admin' && (

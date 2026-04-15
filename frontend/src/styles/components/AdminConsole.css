@@ -385,6 +385,36 @@
   color: var(--warning-600);
 }
 
+.admin-status-tag--paid {
+  background: rgba(59, 130, 246, 0.12);
+  color: rgb(37, 99, 235);
+}
+
+.admin-status-tag--shipped {
+  background: rgba(99, 102, 241, 0.12);
+  color: rgb(79, 70, 229);
+}
+
+.admin-status-tag--delivered {
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(5, 150, 105);
+}
+
+.admin-status-tag--completed {
+  background: var(--success-50);
+  color: var(--success-700);
+}
+
+.admin-status-tag--cancelled {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.admin-status-tag--neutral {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
 .admin-status-tag--approved {
   background: var(--success-50);
   color: var(--success-600);
@@ -517,6 +547,61 @@
 .admin-table-title {
   font-weight: 600;
   color: var(--gray-900);
+}
+
+.admin-history-summary {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.admin-history-kind {
+  white-space: nowrap;
+  width: 90px;
+}
+
+.admin-history-scroll {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.admin-history-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.admin-history-col-kind {
+  width: 90px;
+}
+
+.admin-history-col-amount {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.admin-history-col-status {
+  width: 110px;
+}
+
+.admin-history-col-time {
+  width: 190px;
+  white-space: nowrap;
+}
+
+.admin-history-col-detail {
+  width: auto;
+}
+
+.admin-history-table th,
+.admin-history-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-history-table .admin-history-col-kind,
+.admin-history-table .admin-history-col-time {
+  text-overflow: clip;
 }
 
 .admin-table-meta {

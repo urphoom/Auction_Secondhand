@@ -56,6 +56,14 @@ export function useAuth() {
     setLoading(false);
   }
 
+  function updateUser(patch) {
+    setUser((prev) => {
+      const next = { ...(prev || {}), ...(patch || {}) };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }
+
   function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -65,7 +73,7 @@ export function useAuth() {
     window.location.reload();
   }
 
-  return { user, login, logout, loading };
+  return { user, login, logout, loading, updateUser };
 }
 
 

@@ -6,8 +6,7 @@ export const adminLinks = [
   { to: '/admin/auctions', label: 'การประมูล' },
   { to: '/admin/top-ups', label: 'คำขอเติมเงิน' },
   { to: '/admin/withdrawals', label: 'คำขอถอนเงิน' },
-  { to: '/admin/users', label: 'ผู้ใช้' },
-  { to: '/chat', label: 'แชท' }
+  { to: '/admin/users', label: 'ผู้ใช้' }
 ];
 
 export default function AdminSidebar() {

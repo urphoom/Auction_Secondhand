@@ -50,6 +50,131 @@ router.get('/users', async (req, res) => {
   res.json(rows);
 });
 
+router.get('/users/:id/profile', async (req, res) => {
+  const pool = await getPool();
+  const userId = Number(req.params.id);
+  if (!Number.isFinite(userId)) return res.status(400).json({ message: 'Invalid user id' });
+
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, username, phone, email, role, balance, average_rating, review_count FROM users WHERE id = ?',
+      [userId]
+    );
+    if (!rows.length) return res.status(404).json({ message: 'User not found' });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Failed to fetch user profile' });
+  }
+});
+
+router.get('/users/:id/activity', async (req, res) => {
+  const pool = await getPool();
+  const userId = Number(req.params.id);
+  if (!Number.isFinite(userId)) return res.status(400).json({ message: 'Invalid user id' });
+  const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 30));
+
+  try {
+    // Activity feed (เฉพาะ: เติมเงิน, ถอนเงิน, และประวัติการประมูล)
+    // Not every deployment will have every table; if something is missing, this endpoint should degrade gracefully.
+    const [rows] = await pool.query(
+      `
+      (
+        SELECT CAST('top_up' AS CHAR) COLLATE utf8mb4_unicode_ci AS kind,
+               tur.id AS ref_id,
+               tur.amount AS amount,
+               CAST(tur.status AS CHAR) COLLATE utf8mb4_unicode_ci AS status,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS title,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS note,
+               CAST(admin.username AS CHAR) COLLATE utf8mb4_unicode_ci AS admin_username,
+               tur.created_at AS created_at
+        FROM top_up_requests tur
+        LEFT JOIN users admin ON admin.id = tur.processed_by
+        WHERE tur.user_id = ?
+      )
+      UNION ALL
+      (
+        SELECT CAST('withdrawal' AS CHAR) COLLATE utf8mb4_unicode_ci AS kind,
+               wr.id AS ref_id,
+               wr.amount AS amount,
+               CAST(wr.status AS CHAR) COLLATE utf8mb4_unicode_ci AS status,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS title,
+               CAST(wr.note AS CHAR) COLLATE utf8mb4_unicode_ci AS note,
+               CAST(admin.username AS CHAR) COLLATE utf8mb4_unicode_ci AS admin_username,
+               wr.created_at AS created_at
+        FROM withdrawal_requests wr
+        LEFT JOIN users admin ON admin.id = wr.processed_by
+        WHERE wr.user_id = ?
+      )
+      UNION ALL
+      (
+        SELECT CAST('auction' AS CHAR) COLLATE utf8mb4_unicode_ci AS kind,
+               a.id AS ref_id,
+               a.current_price AS amount,
+               CAST(
+                 CASE pt.status
+                   WHEN 'pending' THEN 'รอชำระเงิน'
+                   WHEN 'paid' THEN 'ชำระเงินแล้ว'
+                   WHEN 'shipped' THEN 'กำลังจัดส่ง'
+                   WHEN 'delivered' THEN 'ได้รับสินค้าแล้ว'
+                   WHEN 'completed' THEN 'เสร็จสิ้น'
+                   WHEN 'cancelled' THEN 'ยกเลิก'
+                   ELSE NULL
+                 END
+                 AS CHAR
+               ) COLLATE utf8mb4_unicode_ci AS status,
+               CAST(a.title AS CHAR) COLLATE utf8mb4_unicode_ci AS title,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS note,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS admin_username,
+               a.end_time AS created_at
+        FROM auctions a
+        LEFT JOIN payment_transactions pt
+          ON pt.auction_id = a.id
+         AND (pt.winner_id = ? OR pt.seller_id = ?)
+        WHERE a.user_id = ?
+      )
+      UNION ALL
+      (
+        SELECT CAST('bid' AS CHAR) COLLATE utf8mb4_unicode_ci AS kind,
+               b.id AS ref_id,
+               b.amount AS amount,
+               CAST(
+                 CASE pt.status
+                   WHEN 'pending' THEN 'รอชำระเงิน'
+                   WHEN 'paid' THEN 'ชำระเงินแล้ว'
+                   WHEN 'shipped' THEN 'กำลังจัดส่ง'
+                   WHEN 'delivered' THEN 'ได้รับสินค้าแล้ว'
+                   WHEN 'completed' THEN 'เสร็จสิ้น'
+                   WHEN 'cancelled' THEN 'ยกเลิก'
+                   ELSE NULL
+                 END
+                 AS CHAR
+               ) COLLATE utf8mb4_unicode_ci AS status,
+               CAST(a.title AS CHAR) COLLATE utf8mb4_unicode_ci AS title,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS note,
+               CAST(NULL AS CHAR) COLLATE utf8mb4_unicode_ci AS admin_username,
+               b.created_at AS created_at
+        FROM bids b
+        LEFT JOIN auctions a ON a.id = b.auction_id
+        LEFT JOIN payment_transactions pt
+          ON pt.auction_id = b.auction_id
+         AND pt.winner_id = b.user_id
+        WHERE b.user_id = ?
+      )
+      ORDER BY created_at DESC
+      LIMIT ?
+      `,
+      [userId, userId, userId, userId, userId, userId, userId, limit]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    // For older deployments missing some tables, return empty set gracefully.
+    console.error('Error fetching user activity:', error);
+    res.json([]);
+  }
+});
+
 router.get('/stats', async (req, res) => {
   const pool = await getPool();
   try {
