@@ -15,7 +15,8 @@ import {
   Package,
   History,
   LogOut,
-  ArrowRightLeft
+  ArrowRightLeft,
+  LayoutDashboard
 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
@@ -214,7 +215,9 @@ export default function Navbar() {
         </Link>
 
         {/* Modern Navigation Links */}
-        <div className="nav-links">
+        <div
+          className={`nav-links${user?.role === 'admin' ? ' nav-links--admin' : ''}`}
+        >
           {/* Main navigation - left side, next to logo */}
           <div className="nav-links-left">
             <Link to="/" className="nav-link">
@@ -237,30 +240,33 @@ export default function Navbar() {
             <>
               {/* Personal / right-side navigation */}
               <div className="nav-links-right">
-                {user && user.role !== 'admin' && (
+                <div className="nav-links-user-cluster">
                   <Link to="/chat" className="nav-link">
                     <MessageCircle size={16} className="nav-icon" />
                     <span className="nav-text">แชท</span>
                   </Link>
-                )}
-                <Link to="/notifications" className="nav-link relative">
-                  <Bell size={16} className="nav-icon" />
-                  <span className="nav-text">การแจ้งเตือน</span>
-                  {unreadCount > 0 && (
-                    <span className="notification-badge">{unreadCount}</span>
+                  <Link to="/notifications" className="nav-link relative">
+                    <Bell size={16} className="nav-icon" />
+                    <span className="nav-text">การแจ้งเตือน</span>
+                    {unreadCount > 0 && (
+                      <span className="notification-badge">{unreadCount}</span>
+                    )}
+                  </Link>
+                  {user.role !== 'admin' && (
+                    <Link to="/orders" className="nav-link">
+                      <Package size={16} className="nav-icon" />
+                      <span className="nav-text">จัดการคำสั่งซื้อ</span>
+                    </Link>
                   )}
-                </Link>
-                {user.role !== 'admin' && (
-                  <Link to="/orders" className="nav-link">
-                    <Package size={16} className="nav-icon" />
-                    <span className="nav-text">จัดการคำสั่งซื้อ</span>
-                  </Link>
-                )}
+                </div>
                 {user.role === 'admin' && (
-                  <Link to="/admin/dashboard" className="nav-link">
-                    <ArrowRightLeft size={16} className="nav-icon" />
-                    <span className="nav-text">Admin Dashboard</span>
-                  </Link>
+                  <>
+                    <span className="nav-links-divider" aria-hidden="true" />
+                    <Link to="/admin/dashboard" className="nav-link nav-link--admin-console">
+                      <LayoutDashboard size={16} className="nav-icon" />
+                      <span className="nav-text">แดชบอร์ดแอดมิน</span>
+                    </Link>
+                  </>
                 )}
               </div>
 
