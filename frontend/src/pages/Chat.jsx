@@ -324,7 +324,7 @@ export default function Chat() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">Chat Support</h1>
+              <h1 className="page-title">แชท</h1>
               <p className="page-subtitle">Connect with support and community</p>
             </div>
           </div>
@@ -350,7 +350,7 @@ export default function Chat() {
         <div className="page-header">
           <div className="container">
             <div className="text-center">
-              <h1 className="page-title">Chat Support</h1>
+              <h1 className="page-title">แชท</h1>
               <p className="page-subtitle">Connect with support and community</p>
             </div>
           </div>

@@ -122,14 +122,14 @@ export default function Notifications() {
           navigate(`/chat?room=${response.data[0].id}`);
         } else {
           // If no chat room exists, create one or show message
-          alert('Chat room is being created. Please wait a moment and refresh the page.');
+          alert('ระบบกำลังสร้างห้องแชท กรุณารอสักครู่แล้วลองรีเฟรชใหม่');
         }
       } catch (error) {
         console.error('Error accessing chat room:', error);
         if (error.response?.status === 403) {
-          alert('You are not the winner of this auction.');
+          alert('คุณไม่ใช่ผู้ชนะการประมูลนี้');
         } else {
-          alert('Error accessing chat room. Please try again.');
+          alert('ไม่สามารถเข้าแชทได้ กรุณาลองใหม่อีกครั้ง');
         }
       }
     }
@@ -150,9 +150,9 @@ export default function Notifications() {
           <div className="container">
               <div className="card">
               <div className="card-body text-center">
-                <h3 className="text-xl font-semibold mb-2">Login Required</h3>
-                <p className="text-gray mb-4">Please login to view notifications</p>
-                <a href="/login" className="btn btn-primary">Login</a>
+                <h3 className="text-xl font-semibold mb-2">กรุณาเข้าสู่ระบบ</h3>
+                <p className="text-gray mb-4">เข้าสู่ระบบเพื่อดูการแจ้งเตือนของคุณ</p>
+                <a href="/login" className="btn btn-primary">เข้าสู่ระบบ</a>
               </div>
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function Notifications() {
             <div className="flex items-center justify-center min-h-screen">
               <div className="loading">
                 <div className="spinner"></div>
-                <span>Loading notifications...</span>
+                <span>กำลังโหลดการแจ้งเตือน...</span>
               </div>
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function Notifications() {
             {unreadCount > 0 && (
               <div className="mt-2">
                 <span className="badge badge-warning">
-                  {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+                  ยังไม่ได้อ่าน {unreadCount} รายการ
                 </span>
               </div>
             )}
@@ -213,7 +213,7 @@ export default function Notifications() {
                 <div>
                   <h3 className="text-lg font-semibold text-white">ศูนย์การแจ้งเตือน</h3>
                   <p className="text-gray">
-                    {notifications.length} total notification{notifications.length !== 1 ? 's' : ''}
+                    ทั้งหมด {notifications.length} รายการ
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -222,14 +222,14 @@ export default function Notifications() {
                       onClick={markAllAsRead}
                       className="btn btn-success btn-sm"
                     >
-                      Mark All Read
+                      อ่านทั้งหมด
                     </button>
                   )}
                   <button 
                     onClick={loadNotifications}
                     className="btn btn-secondary btn-sm"
                   >
-                    Refresh
+                    รีเฟรช
                   </button>
                 </div>
               </div>
@@ -318,7 +318,7 @@ export default function Notifications() {
                               onClick={() => handleChatRoomClick(notification)}
                               className="btn btn-secondary btn-sm"
                             >
-                              Open Chat
+                              เปิดแชท
                             </button>
                           )}
                           {(notification.type === 'topup_created' || notification.type === 'topup_approved' || notification.type === 'topup_rejected') && (
@@ -342,7 +342,7 @@ export default function Notifications() {
                               onClick={() => markAsRead(notification.id)}
                               className="btn btn-success btn-sm"
                             >
-                              Mark Read
+                              ทำเครื่องหมายว่าอ่านแล้ว
                             </button>
                           )}
                           <button 

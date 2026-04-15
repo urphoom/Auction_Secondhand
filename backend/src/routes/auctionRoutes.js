@@ -161,11 +161,14 @@ router.get('/my-auctions', authRequired, async (req, res) => {
   const [rows] = await pool.query(`
     SELECT a.*, 
            COUNT(b.id) as bid_count,
-           winner.user_id as winner_id,
-           winner.username as winner_username,
-           winner.amount as winning_amount
+           COALESCE(winner.user_id, pt.winner_id, a.winner_id) as winner_id,
+           COALESCE(winner.username, pt_winner.username, wuser.username) as winner_username,
+           COALESCE(winner.amount, a.current_price) as winning_amount
     FROM auctions a
     LEFT JOIN bids b ON a.id = b.auction_id
+    LEFT JOIN payment_transactions pt ON pt.auction_id = a.id
+    LEFT JOIN users pt_winner ON pt.winner_id = pt_winner.id
+    LEFT JOIN users wuser ON a.winner_id = wuser.id
     LEFT JOIN (
       SELECT b1.*, u.username
       FROM bids b1
@@ -178,7 +181,7 @@ router.get('/my-auctions', authRequired, async (req, res) => {
     ) winner ON a.id = winner.auction_id
     WHERE a.user_id = ?
     AND a.end_time <= NOW()
-    AND winner.user_id IS NOT NULL
+    AND (winner.user_id IS NOT NULL OR pt.winner_id IS NOT NULL OR a.winner_id IS NOT NULL)
     GROUP BY a.id
     ORDER BY a.end_time DESC
   `, [req.user.id]);
@@ -695,9 +698,9 @@ router.post('/:id/buy-now', authRequired, async (req, res) => {
     // Update auction: end it immediately and set current price to buy now price
     await conn.query(`
       UPDATE auctions 
-      SET end_time = NOW(), current_price = ? 
+      SET end_time = NOW(), current_price = ?, winner_id = ?, status = 'ended'
       WHERE id = ?
-    `, [buyNowPrice, auctionId]);
+    `, [buyNowPrice, userId, auctionId]);
     
     // Deduct balance from buyer
     const [updateResult] = await conn.query(`

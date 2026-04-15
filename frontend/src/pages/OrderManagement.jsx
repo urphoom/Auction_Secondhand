@@ -33,6 +33,11 @@ export default function OrderManagement() {
   const [trackingModal, setTrackingModal] = useState({ open: false, transaction: null, auction: null });
   const [trackingForm, setTrackingForm] = useState({ trackingNumber: '', estimatedDelivery: '', notes: '' });
   const [trackingSubmitting, setTrackingSubmitting] = useState(false);
+  const [noticeModal, setNoticeModal] = useState(null); // { kind: 'success'|'error'|'info', title: string, message: string }
+
+  const showNotice = useCallback((kind, title, message) => {
+    setNoticeModal({ kind, title, message });
+  }, []);
 
   const formatCurrency = useCallback((value) => {
     const amount = Number(value || 0);
@@ -164,12 +169,12 @@ export default function OrderManagement() {
       }
       
       if (!transaction) {
-        alert('ไม่พบข้อมูลการชำระเงินสำหรับการประมูลนี้');
+        showNotice('error', 'ไม่พบข้อมูลการชำระเงิน', 'ไม่พบข้อมูลการชำระเงินสำหรับการประมูลนี้');
         return;
       }
 
       if (transaction.status !== 'paid') {
-        alert('ผู้ซื้อยังไม่ได้ชำระเงิน');
+        showNotice('info', 'ยังไม่สามารถจัดส่งได้', 'ผู้ซื้อยังไม่ได้ชำระเงิน');
         return;
       }
 
@@ -186,7 +191,7 @@ export default function OrderManagement() {
       setShowShippingForm(true);
     } catch (error) {
       console.error('Error checking transaction:', error);
-      alert('เกิดข้อผิดพลาดในการตรวจสอบข้อมูล');
+      showNotice('error', 'เกิดข้อผิดพลาด', 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูล');
     }
   };
 
@@ -196,7 +201,7 @@ export default function OrderManagement() {
 
       await api.post(`/payments/transactions/${selectedTransaction.id}/ship`, shippingData);
 
-      alert('ยืนยันการจัดส่งเรียบร้อย');
+      showNotice('success', 'สำเร็จ', 'ยืนยันการจัดส่งเรียบร้อย');
       setShowShippingForm(false);
       setSelectedAuction(null);
       setSelectedTransaction(null);
@@ -226,7 +231,7 @@ export default function OrderManagement() {
       loadShippingStatuses();
     } catch (error) {
       console.error('Error confirming shipment:', error);
-      alert('เกิดข้อผิดพลาดในการยืนยันการจัดส่ง');
+      showNotice('error', 'เกิดข้อผิดพลาด', 'เกิดข้อผิดพลาดในการยืนยันการจัดส่ง');
     }
   };
 
@@ -254,7 +259,7 @@ export default function OrderManagement() {
       }
 
       if (!transaction) {
-        alert('ไม่พบข้อมูลการชำระเงินสำหรับรายการนี้');
+        showNotice('error', 'ไม่พบข้อมูลการชำระเงิน', 'ไม่พบข้อมูลการชำระเงินสำหรับรายการนี้');
         return;
       }
 
@@ -266,7 +271,7 @@ export default function OrderManagement() {
       setTrackingModal({ open: true, transaction, auction });
     } catch (error) {
       console.error('Error opening tracking modal:', error);
-      alert('ไม่สามารถเปิดหน้ากรอกหมายเลขพัสดุได้');
+      showNotice('error', 'เกิดข้อผิดพลาด', 'ไม่สามารถเปิดหน้ากรอกหมายเลขพัสดุได้');
     }
   };
 
@@ -285,7 +290,7 @@ export default function OrderManagement() {
     if (!trackingModal.transaction) return;
 
     if (!trackingForm.trackingNumber || trackingForm.trackingNumber.trim().length < 4) {
-      alert('กรุณากรอกหมายเลขพัสดุอย่างน้อย 4 ตัวอักษร');
+      showNotice('info', 'ข้อมูลไม่ครบถ้วน', 'กรุณากรอกหมายเลขพัสดุอย่างน้อย 4 ตัวอักษร');
       return;
     }
 
@@ -297,12 +302,12 @@ export default function OrderManagement() {
         shippingNote: trackingForm.notes || null
       });
 
-      alert('บันทึกหมายเลขพัสดุเรียบร้อย');
+      showNotice('success', 'สำเร็จ', 'บันทึกหมายเลขพัสดุเรียบร้อย');
       closeTrackingModal();
       loadShippingStatuses();
     } catch (error) {
       console.error('Error saving tracking info:', error);
-      alert(error.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกหมายเลขพัสดุ');
+      showNotice('error', 'บันทึกไม่สำเร็จ', error.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกหมายเลขพัสดุ');
     } finally {
       setTrackingSubmitting(false);
     }
@@ -319,7 +324,7 @@ export default function OrderManagement() {
       }
       
       if (!transaction) {
-        alert('ไม่พบข้อมูลการชำระเงิน');
+        showNotice('error', 'ไม่พบข้อมูลการชำระเงิน', 'ไม่พบข้อมูลการชำระเงิน');
         return;
       }
 
@@ -331,10 +336,10 @@ export default function OrderManagement() {
         'completed': 'เสร็จสิ้น'
       };
 
-      alert(`สถานะผู้ซื้อ: ${statusMessages[transaction.status] || transaction.status}`);
+      showNotice('info', 'สถานะผู้ซื้อ', statusMessages[transaction.status] || transaction.status);
     } catch (error) {
       console.error('Failed to check buyer status:', error);
-      alert('ไม่สามารถตรวจสอบสถานะได้');
+      showNotice('error', 'ตรวจสอบไม่สำเร็จ', 'ไม่สามารถตรวจสอบสถานะได้');
     }
   };
 
@@ -760,6 +765,47 @@ export default function OrderManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {noticeModal && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setNoticeModal(null)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">{noticeModal.title}</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setNoticeModal(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div
+                className={`alert ${
+                  noticeModal.kind === 'success'
+                    ? 'alert-success'
+                    : noticeModal.kind === 'error'
+                      ? 'alert-error'
+                      : 'alert-warning'
+                }`}
+              >
+                <span className="text-sm">{noticeModal.message}</span>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-primary" onClick={() => setNoticeModal(null)}>
+                ตกลง
+              </button>
+            </div>
           </div>
         </div>
       )}
