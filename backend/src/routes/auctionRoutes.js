@@ -475,16 +475,22 @@ router.patch(
         return res.status(403).json({ message: 'Forbidden' });
       }
 
-      if (new Date(auction.end_time) <= new Date()) {
-        await conn.rollback();
-        return res.status(400).json({ message: 'ไม่สามารถแก้ไขได้เนื่องจากการประมูลสิ้นสุดแล้ว' });
-      }
-
       const [[cnt]] = await conn.query('SELECT COUNT(*) AS c FROM bids WHERE auction_id=?', [auctionId]);
       const bidCount = Number(cnt?.c || 0);
       if (bidCount > 0) {
         await conn.rollback();
-        return res.status(400).json({ message: 'ไม่สามารถแก้ไขข้อมูลได้เนื่องจากมีการประมูลเกิดขึ้นแล้ว' });
+        return res.status(400).json({ message: `ไม่สามารถแก้ไขได้ เนื่องจากมีการบิดแล้ว (${bidCount} ครั้ง)` });
+      }
+
+      const ended = new Date(auction.end_time) <= new Date();
+      if (ended) {
+        // Allow extending ONLY when no bids and not already purchased/paid.
+        const [[ptCnt]] = await conn.query('SELECT COUNT(*) AS c FROM payment_transactions WHERE auction_id=?', [auctionId]);
+        const ptCount = Number(ptCnt?.c || 0);
+        if (ptCount > 0 || auction.winner_id != null) {
+          await conn.rollback();
+          return res.status(400).json({ message: 'ไม่สามารถยืดเวลาได้เนื่องจากมีการซื้อ/ชำระเงินแล้ว' });
+        }
       }
 
       // Validate keep list belongs to this auction
@@ -503,7 +509,15 @@ router.patch(
 
       // If no bids, current_price should track start_price
       await conn.query(
-        'UPDATE auctions SET start_price=?, current_price=?, buy_now_price=?, end_time=?, image=?, images=? WHERE id=?',
+        `UPDATE auctions
+            SET start_price=?,
+                current_price=?,
+                buy_now_price=?,
+                end_time=?,
+                image=?,
+                images=?,
+                status='active'
+          WHERE id=?`,
         [numericStart, numericStart, buyNow, nextEnd, primary, JSON.stringify(merged), auctionId]
       );
 

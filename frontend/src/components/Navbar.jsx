@@ -386,10 +386,10 @@ export default function Navbar() {
             <div className="auth-actions-wrapper">
               <div className="auth-actions">
                 <Link to="/login" className="btn btn-secondary">
-                  <span>Login</span>
+                  <span>เข้าสู่ระบบ</span>
                 </Link>
                 <Link to="/register" className="btn btn-primary">
-                  <span>Register</span>
+                  <span>สมัครสมาชิก</span>
                 </Link>
               </div>
             </div>

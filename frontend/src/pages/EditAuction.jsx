@@ -66,7 +66,7 @@ export default function EditAuction() {
 
   const bidCount = Number(auction?.bid_count ?? 0);
   const isEnded = auction ? new Date(auction.end_time) <= new Date() : false;
-  const canEdit = user && auction && Number(auction.user_id) === Number(user.id) && !isEnded && bidCount === 0;
+  const canEdit = user && auction && Number(auction.user_id) === Number(user.id) && bidCount === 0;
 
   const totalImagesCount = keepImages.length + newImages.length;
 
@@ -205,7 +205,7 @@ export default function EditAuction() {
         <div className="container">
           <div className="text-center">
             <h1 className="page-title">แก้ไขการประมูล</h1>
-            <p className="page-subtitle">แก้ไขได้เฉพาะรายการที่กำลังประมูลและยังไม่มีผู้บิด</p>
+            <p className="page-subtitle">แก้ไขได้เฉพาะรายการที่ยังไม่มีผู้บิด (แม้จบเวลาแล้วสามารถยืดเวลาได้)</p>
           </div>
         </div>
       </div>
@@ -214,7 +214,9 @@ export default function EditAuction() {
         <div className="container">
           {!canEdit && (
             <div className="alert alert-warning">
-              ไม่สามารถแก้ไขข้อมูลได้เนื่องจากมีการประมูลเกิดขึ้นแล้ว หรือการประมูลสิ้นสุดแล้ว
+              {bidCount > 0
+                ? `ไม่สามารถแก้ไขได้ เนื่องจากมีการบิดแล้ว (${bidCount} ครั้ง)`
+                : 'ไม่สามารถแก้ไขได้ เนื่องจากคุณไม่ใช่เจ้าของการประมูลนี้'}
             </div>
           )}
 

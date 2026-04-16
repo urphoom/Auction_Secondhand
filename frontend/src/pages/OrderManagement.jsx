@@ -486,6 +486,15 @@ export default function OrderManagement() {
                     const estimatedDelivery = shippingStatus.estimated_delivery
                       ? new Date(shippingStatus.estimated_delivery).toLocaleDateString('th-TH')
                       : null;
+                    const rawBidCount = Number(auction.bid_count || 0);
+                    // For Buy Now auctions there may be no bids but a winner exists → show participants as 1
+                    const participantCount = rawBidCount > 0 ? rawBidCount : (auction.winner_id ? 1 : 0);
+                    const buyNowPrice = auction.buy_now_price != null ? Number(auction.buy_now_price) : null;
+                    const isBuyNowEnded =
+                      participantCount === 1 &&
+                      buyNowPrice != null &&
+                      Number.isFinite(buyNowPrice) &&
+                      Number(auction.current_price) === buyNowPrice;
  
                     return (
                       <div key={auction.id} className="auction-order-card">
@@ -520,11 +529,15 @@ export default function OrderManagement() {
                           </div>
                           <div className="order-detail-item">
                             <span className="detail-label">ราคาชนะ</span>
-                            <span className="detail-value">{formatCurrency(auction.winning_amount || auction.current_price)}</span>
+                            <span className="detail-value">
+                              {isBuyNowEnded
+                                ? `${formatCurrency(buyNowPrice)} (ซื้อทันที)`
+                                : formatCurrency(auction.winning_amount || auction.current_price)}
+                            </span>
                           </div>
                           <div className="order-detail-item">
                             <span className="detail-label">จำนวนผู้เข้าร่วม</span>
-                            <span className="detail-value">{auction.bid_count || 0} คน</span>
+                            <span className="detail-value">{participantCount} คน</span>
                           </div>
                           <div className="order-detail-item">
                             <span className="detail-label">สถานะการชำระเงิน</span>
