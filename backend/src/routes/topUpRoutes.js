@@ -8,6 +8,11 @@ import { getPool } from '../utils/db.js';
 import { recordTopUpLog } from '../utils/topUpLogs.js';
 import { NotificationService } from '../services/notificationService.js';
 
+/**
+ * topUpRoutes
+ * - ถูก mount ที่: `/api/top-ups`
+ * - หน้าที่รวม: ผู้ใช้ส่งคำขอเติมเงิน (แนบสลิป) + ดูประวัติคำขอของตัวเอง
+ */
 const router = Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,6 +44,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+// POST /api/top-ups — สร้างคำขอเติมเงิน (multipart: field `slip` เป็นรูปสลิป)
 router.post('/', authRequired, upload.single('slip'), async (req, res) => {
   const { amount, note } = req.body;
 
@@ -124,6 +130,7 @@ router.post('/', authRequired, upload.single('slip'), async (req, res) => {
   }
 });
 
+// GET /api/top-ups/me — ดึงประวัติคำขอเติมเงินของผู้ใช้ปัจจุบัน
 router.get('/me', authRequired, async (req, res) => {
   try {
     const pool = await getPool();

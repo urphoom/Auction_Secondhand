@@ -4,8 +4,14 @@ import jwt from 'jsonwebtoken';
 import { getPool } from '../utils/db.js';
 import { authRequired } from '../middleware/auth.js';
 
+/**
+ * authRoutes
+ * - ถูก mount ที่: `/api/auth` (ดู `backend/src/server.js`)
+ * - หน้าที่รวม: ลงทะเบียน/เข้าสู่ระบบ + ตรวจ JWT + ดึงข้อมูลผู้ใช้จาก token
+ */
 const router = Router();
 
+// POST /api/auth/register — สมัครสมาชิก (สร้าง user + hash รหัสผ่าน)
 router.post('/register', async (req, res) => {
   const { username, password, phone, email, role } = req.body;
   if (!username || !password || !phone || !email) {
@@ -32,6 +38,7 @@ router.post('/register', async (req, res) => {
   res.json({ id: result.insertId, username, phone, email, role: userRole });
 });
 
+// POST /api/auth/login — เข้าสู่ระบบ (คืน JWT + ข้อมูล user พื้นฐาน)
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const pool = await getPool();
@@ -44,11 +51,12 @@ router.post('/login', async (req, res) => {
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
 });
 
-// Verify token endpoint
+// GET /api/auth/verify — ตรวจว่า token ยังใช้ได้ และคืน `req.user` จาก middleware
 router.get('/verify', authRequired, async (req, res) => {
   res.json({ valid: true, user: req.user });
 });
 
+// GET /api/auth/me — ดึงโปรไฟล์ผู้ใช้จาก token (id/username/phone/email/role)
 router.get('/me', authRequired, async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query('SELECT id, username, phone, email, role FROM users WHERE id=?', [req.user.id]);

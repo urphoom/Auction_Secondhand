@@ -2,6 +2,11 @@ import { Router } from 'express';
 import { getPool } from '../utils/db.js';
 import { authRequired } from '../middleware/auth.js';
 
+/**
+ * reviewRoutes
+ * - ถูก mount ที่: `/api/reviews`
+ * - หน้าที่รวม: สร้างรีวิวหลังคำสั่งซื้อเสร็จ + ดึงรีวิวตาม order/seller
+ */
 const router = Router();
 
 async function updateSellerAverageRating(conn, sellerId) {
@@ -18,8 +23,7 @@ async function updateSellerAverageRating(conn, sellerId) {
   return avg;
 }
 
-// Create review
-// Body: { order_id, rating, comment }
+// POST /api/reviews — สร้างรีวิว (Body: { order_id, rating, comment })
 router.post('/', authRequired, async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -96,7 +100,7 @@ router.post('/', authRequired, async (req, res) => {
   }
 });
 
-// Get review by order id (for winner/seller)
+// GET /api/reviews/order/:orderId — ดึงรีวิวของ order (อนุญาตเฉพาะผู้ซื้อ/ผู้ขายของ order นั้น)
 router.get('/order/:orderId', authRequired, async (req, res) => {
   const pool = await getPool();
   const orderId = Number(req.params.orderId);
@@ -121,7 +125,7 @@ router.get('/order/:orderId', authRequired, async (req, res) => {
   return res.json(review);
 });
 
-// List reviews for a seller (public)
+// GET /api/reviews/seller/:sellerId — รายการรีวิวของผู้ขาย (public)
 router.get('/seller/:sellerId', async (req, res) => {
   const pool = await getPool();
   const sellerId = Number(req.params.sellerId);
@@ -144,7 +148,7 @@ router.get('/seller/:sellerId', async (req, res) => {
   res.json(rows);
 });
 
-// Seller review page data (public): seller meta + reviews list
+// GET /api/reviews/seller/:sellerId/page — ข้อมูลหน้ารีวิวผู้ขาย (meta + รายการรีวิว) (public)
 router.get('/seller/:sellerId/page', async (req, res) => {
   const pool = await getPool();
   const sellerId = Number(req.params.sellerId);

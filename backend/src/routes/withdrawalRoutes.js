@@ -4,6 +4,11 @@ import { getPool } from '../utils/db.js';
 import { recordWithdrawalLog } from '../utils/withdrawalLogs.js';
 import { NotificationService } from '../services/notificationService.js';
 
+/**
+ * withdrawalRoutes
+ * - ถูก mount ที่: `/api/withdrawals`
+ * - หน้าที่รวม: ผู้ใช้ดูประวัติถอนเงิน + สร้างคำขอถอนเงิน (หักยอด balance ทันทีตาม logic ใน handler)
+ */
 const router = Router();
 
 function getWithdrawFee() {
@@ -13,6 +18,7 @@ function getWithdrawFee() {
   return Number.isFinite(n) && n >= 0 ? n : 20;
 }
 
+// GET /api/withdrawals/me — ดึงประวัติคำขอถอนเงินของผู้ใช้ปัจจุบัน
 router.get('/me', authRequired, async (req, res) => {
   try {
     const pool = await getPool();
@@ -32,6 +38,7 @@ router.get('/me', authRequired, async (req, res) => {
   }
 });
 
+// POST /api/withdrawals — สร้างคำขอถอนเงิน (ตรวจยอด/ค่าธรรมเนียม/ข้อมูลบัญชี)
 router.post('/', authRequired, async (req, res) => {
   const { amount, bankName, accountNumber, acceptedTerms } = req.body;
 

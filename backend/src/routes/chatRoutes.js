@@ -28,6 +28,12 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+/**
+ * chatRoutes
+ * - ถูก mount ที่: `/api/chat`
+ * - หน้าที่รวม: chat rooms + messages + อัปโหลดรูปในแชท + ลบข้อความ
+ * - หมายเหตุ: มี logic พิเศษสำหรับห้อง "Winner Chat" เพื่อจำกัดสิทธิ์ผู้ชนะ/ผู้ขาย/แอดมิน
+ */
 const router = Router();
 
 async function hasColumn(pool, tableName, columnName) {
@@ -118,7 +124,7 @@ async function userHasWinnerChatAccess(pool, room, userId) {
   return bidCheck.length > 0;
 }
 
-// Get chat rooms (private: only user's own rooms + admin can see all + winner chat rooms)
+// GET /api/chat/rooms — รายการห้องแชท (user เห็นของตัวเอง + winner chat ที่เข้าถึงได้ / admin เห็นทั้งหมด)
 router.get('/rooms', authRequired, async (req, res) => {
   const pool = await getPool();
   const io = req.app.get('io');
@@ -227,7 +233,7 @@ router.get('/rooms', authRequired, async (req, res) => {
   }
 });
 
-// Create a new chat room
+// POST /api/chat/rooms — สร้างห้องแชทใหม่
 router.post('/rooms', authRequired, async (req, res) => {
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ message: 'Room name is required' });
@@ -248,7 +254,7 @@ router.post('/rooms', authRequired, async (req, res) => {
   res.json(rows[0]);
 });
 
-// Get chat rooms for auction winner (special access for winners)
+// GET /api/chat/rooms/winner/:auctionId — ดึงห้องแชทของผู้ชนะประมูล (ตรวจสิทธิ์ผู้ชนะก่อน)
 router.get('/rooms/winner/:auctionId', authRequired, async (req, res) => {
   const { auctionId } = req.params;
   const pool = await getPool();
@@ -331,7 +337,7 @@ router.get('/rooms/winner/:auctionId', authRequired, async (req, res) => {
   }
 });
 
-// Get all chat rooms accessible to user (including winner chat rooms)
+// GET /api/chat/rooms/accessible — ห้องที่ user “เข้าถึงได้ทั้งหมด” (รวม winner chat ที่ผ่านเงื่อนไข)
 router.get('/rooms/accessible', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -459,7 +465,7 @@ router.get('/rooms/accessible', authRequired, async (req, res) => {
   }
 });
 
-// Get messages for a room (with access control)
+// GET /api/chat/rooms/:id/messages — ดึงข้อความในห้อง (ตรวจสิทธิ์เข้าห้องก่อน)
 router.get('/rooms/:id/messages', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -504,7 +510,7 @@ router.get('/rooms/:id/messages', authRequired, async (req, res) => {
   }
 });
 
-// Send a text message (with access control)
+// POST /api/chat/rooms/:id/messages — ส่งข้อความ (text) ในห้อง (ตรวจสิทธิ์เข้าห้องก่อน + emit socket)
 router.post('/rooms/:id/messages', authRequired, async (req, res) => {
   const { content, message } = req.body;
   const messageText = content || message;
@@ -563,7 +569,7 @@ router.post('/rooms/:id/messages', authRequired, async (req, res) => {
   }
 });
 
-// Send an image message (with access control)
+// POST /api/chat/rooms/:id/messages/image — ส่งรูปในแชท (multipart: field `image`)
 router.post('/rooms/:id/messages/image', authRequired, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Image file is required' });
@@ -616,7 +622,7 @@ router.post('/rooms/:id/messages/image', authRequired, upload.single('image'), a
   }
 });
 
-// Delete a message (admin or message owner)
+// DELETE /api/chat/messages/:id — ลบข้อความ (เจ้าของข้อความ หรือ admin)
 router.delete('/messages/:id', authRequired, async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query('SELECT * FROM chat_messages WHERE id=?', [req.params.id]);

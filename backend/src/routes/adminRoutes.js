@@ -9,8 +9,15 @@ import { recordTopUpLog } from '../utils/topUpLogs.js';
 import { recordWithdrawalLog } from '../utils/withdrawalLogs.js';
 import { NotificationService } from '../services/notificationService.js';
 
+/**
+ * adminRoutes
+ * - ถูก mount ที่: `/api/admin`
+ * - หมายเหตุสำคัญ: ทุก endpoint ด้านล่างถูกคุมด้วย `authRequired + requireRole('admin')`
+ * - หน้าที่รวม: จัดการผู้ใช้/การประมูล/เติมเงิน/ถอนเงิน/สถิติ + audit log บางส่วน
+ */
 const router = Router();
 
+// Middleware: บังคับให้เป็น admin ก่อนทุก route ในไฟล์นี้
 router.use(authRequired, requireRole('admin'));
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,12 +51,14 @@ async function logAdminAction(pool, adminId, action, targetType, targetId, detai
   );
 }
 
+// GET /api/admin/users — รายชื่อผู้ใช้ (สรุปข้อมูลพื้นฐานสำหรับหน้า admin)
 router.get('/users', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query('SELECT id, username, role, balance FROM users ORDER BY id DESC');
   res.json(rows);
 });
 
+// GET /api/admin/users/:id/profile — โปรไฟล์ผู้ใช้รายคน (ใช้เปิด modal/หน้ารายละเอียด)
 router.get('/users/:id/profile', async (req, res) => {
   const pool = await getPool();
   const userId = Number(req.params.id);
@@ -68,6 +77,7 @@ router.get('/users/:id/profile', async (req, res) => {
   }
 });
 
+// GET /api/admin/users/:id/activity — ประวัติ/กิจกรรมของผู้ใช้ (union หลายตาราง)
 router.get('/users/:id/activity', async (req, res) => {
   const pool = await getPool();
   const userId = Number(req.params.id);
@@ -175,6 +185,7 @@ router.get('/users/:id/activity', async (req, res) => {
   }
 });
 
+// GET /api/admin/stats — สถิติรวมของระบบ (user/auction/payment/top-up ฯลฯ)
 router.get('/stats', async (req, res) => {
   const pool = await getPool();
   try {
@@ -242,6 +253,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// GET /api/admin/auctions — รายการประมูลสำหรับแอดมิน (มุมมองจัดการ)
 router.get('/auctions', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(`
@@ -271,6 +283,7 @@ router.get('/auctions', async (req, res) => {
   res.json(rows);
 });
 
+// PATCH /api/admin/auctions/:id — แก้ไข/อัปเดตการประมูล (เช่น สถานะ/ข้อมูลสำคัญตาม logic ใน handler)
 router.patch('/auctions/:id', async (req, res) => {
   const pool = await getPool();
   const { title, description, end_time: endTime, buy_now_price: buyNowPrice, minimum_increment: minIncrement, bid_type: bidType } = req.body;
@@ -325,6 +338,7 @@ router.patch('/auctions/:id', async (req, res) => {
   }
 });
 
+// POST /api/admin/auctions/:id/cancel — ยกเลิกการประมูล (ตามเงื่อนไขใน handler)
 router.post('/auctions/:id/cancel', async (req, res) => {
   const pool = await getPool();
   const { reason } = req.body;
@@ -344,6 +358,7 @@ router.post('/auctions/:id/cancel', async (req, res) => {
   }
 });
 
+// GET /api/admin/top-ups — รายการคำขอเติมเงินทั้งหมด (สำหรับแอดมินตรวจสอบ)
 router.get('/top-ups', async (req, res) => {
   const pool = await getPool();
   const { status, search = '', page = 1, limit = 20 } = req.query;
@@ -414,6 +429,7 @@ router.get('/top-ups', async (req, res) => {
   }
 });
 
+// GET /api/admin/top-ups/:id/logs — ประวัติการดำเนินการของคำขอเติมเงินรายการนั้น
 router.get('/top-ups/:id/logs', async (req, res) => {
   const pool = await getPool();
   try {
@@ -434,6 +450,7 @@ router.get('/top-ups/:id/logs', async (req, res) => {
 });
 
 // Withdrawals (admin)
+// GET /api/admin/withdrawals — รายการคำขอถอนเงินทั้งหมด
 router.get('/withdrawals', async (req, res) => {
   const pool = await getPool();
   const { status, search = '', page = 1, limit = 20 } = req.query;
@@ -507,6 +524,7 @@ router.get('/withdrawals', async (req, res) => {
   }
 });
 
+// GET /api/admin/withdrawals/:id/logs — ประวัติการดำเนินการของคำขอถอนเงินรายการนั้น
 router.get('/withdrawals/:id/logs', async (req, res) => {
   const pool = await getPool();
   try {
@@ -525,6 +543,7 @@ router.get('/withdrawals/:id/logs', async (req, res) => {
   }
 });
 
+// POST /api/admin/withdrawals/:id/approve — อนุมัติถอนเงิน (แนบสลิปโอนคืนได้ผ่าน multipart field `slip`)
 router.post('/withdrawals/:id/approve', uploadWithdrawalSlip.single('slip'), async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -610,6 +629,7 @@ router.post('/withdrawals/:id/approve', uploadWithdrawalSlip.single('slip'), asy
   }
 });
 
+// POST /api/admin/withdrawals/:id/reject — ปฏิเสธคำขอถอนเงิน (คืนเงิน/อัปเดตสถานะตาม logic)
 router.post('/withdrawals/:id/reject', async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -682,6 +702,7 @@ router.post('/withdrawals/:id/reject', async (req, res) => {
   }
 });
 
+// POST /api/admin/top-ups/:id/approve — อนุมัติเติมเงิน (เพิ่ม balance + อัปเดตสถานะคำขอ)
 router.post('/top-ups/:id/approve', async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -750,6 +771,7 @@ router.post('/top-ups/:id/approve', async (req, res) => {
   }
 });
 
+// POST /api/admin/top-ups/:id/reject — ปฏิเสธคำขอเติมเงิน
 router.post('/top-ups/:id/reject', async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -816,6 +838,7 @@ router.post('/top-ups/:id/reject', async (req, res) => {
   }
 });
 
+// PATCH /api/admin/users/:id — แก้ไขข้อมูลผู้ใช้ (เช่น role/balance ตามที่ handler อนุญาต)
 router.patch('/users/:id', async (req, res) => {
   const pool = await getPool();
   const { role, balance } = req.body;
@@ -861,6 +884,7 @@ router.patch('/users/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/users/:id — ลบผู้ใช้ (อันตราย: ใช้เฉพาะกรณีจัดการระบบ/ทดสอบ)
 router.delete('/users/:id', async (req, res) => {
   const pool = await getPool();
   await pool.query('DELETE FROM bids WHERE user_id=?', [req.params.id]);
@@ -869,6 +893,7 @@ router.delete('/users/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// DELETE /api/admin/auctions/:id — ลบการประมูล (แอดมิน)
 router.delete('/auctions/:id', async (req, res) => {
   const pool = await getPool();
   await pool.query('DELETE FROM bids WHERE auction_id=?', [req.params.id]);
@@ -878,6 +903,7 @@ router.delete('/auctions/:id', async (req, res) => {
 });
 
 // Legacy manual balance adjusters (kept for admin emergency use)
+// POST /api/admin/users/:id/add-funds — เพิ่มเงินให้ผู้ใช้ (ปรับ balance + บันทึก audit)
 router.post('/users/:id/add-funds', async (req, res) => {
   try {
     const pool = await getPool();
@@ -908,6 +934,7 @@ router.post('/users/:id/add-funds', async (req, res) => {
   }
 });
 
+// POST /api/admin/users/:id/deduct-funds — หักเงินผู้ใช้ (ปรับ balance + บันทึก audit)
 router.post('/users/:id/deduct-funds', async (req, res) => {
   try {
     const pool = await getPool();

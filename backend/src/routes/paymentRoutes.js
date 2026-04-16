@@ -3,9 +3,14 @@ import { getPool } from '../utils/db.js';
 import { authRequired } from '../middleware/auth.js';
 import { sendNotificationToUser } from '../sockets/notificationSocket.js';
 
+/**
+ * paymentRoutes
+ * - ถูก mount ที่: `/api/payments`
+ * - หน้าที่รวม: payment_transactions + shipping_info + payment_notifications + ยอด balance
+ */
 const router = Router();
 
-// Get payment transactions for user (winner or seller)
+// GET /api/payments/transactions — รายการธุรกรรมที่ user เป็น winner หรือ seller
 router.get('/transactions', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -50,7 +55,7 @@ router.get('/transactions', authRequired, async (req, res) => {
   }
 });
 
-// Get specific payment transaction
+// GET /api/payments/transactions/:id — รายละเอียดธุรกรรม 1 รายการ (ต้องเป็น winner/seller ของรายการนั้น)
 router.get('/transactions/:id', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -94,7 +99,7 @@ router.get('/transactions/:id', authRequired, async (req, res) => {
   }
 });
 
-// Create payment transaction (for auction winner)
+// POST /api/payments/transactions — สร้างธุรกรรมชำระเงินหลังประมูลจบ (เฉพาะผู้ชนะ)
 router.post('/transactions', authRequired, async (req, res) => {
   const { auction_id } = req.body;
   const pool = await getPool();
@@ -165,7 +170,7 @@ router.post('/transactions', authRequired, async (req, res) => {
   }
 });
 
-// Process payment (winner pays)
+// POST /api/payments/transactions/:id/pay — ผู้ชนะชำระเงิน + บันทึกที่อยู่จัดส่ง (เปลี่ยนสถานะเป็น paid)
 router.post('/transactions/:id/pay', authRequired, async (req, res) => {
   const pool = await getPool();
   const { shippingAddress, recipientName, recipientPhone, shippingNote, shippingMethod } = req.body;
@@ -268,7 +273,7 @@ router.post('/transactions/:id/pay', authRequired, async (req, res) => {
   }
 });
 
-// Ship item (seller ships)
+// POST /api/payments/transactions/:id/ship — ผู้ขายอัปเดตการจัดส่ง (สถานะ shipped)
 router.post('/transactions/:id/ship', authRequired, async (req, res) => {
   const { shipping_address, shipping_method, tracking_number, estimated_delivery, notes } = req.body;
   const pool = await getPool();
@@ -325,7 +330,7 @@ router.post('/transactions/:id/ship', authRequired, async (req, res) => {
   }
 });
 
-// Confirm delivery (winner confirms receipt)
+// POST /api/payments/transactions/:id/deliver — ผู้ชนะยืนยันรับสินค้า (สถานะ delivered + ปล่อยเงินให้ผู้ขายตาม escrow)
 router.post('/transactions/:id/deliver', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -423,7 +428,7 @@ router.post('/transactions/:id/deliver', authRequired, async (req, res) => {
   }
 });
 
-// Complete transaction (final step)
+// POST /api/payments/transactions/:id/complete — ปิดงานธุรกรรมขั้นสุดท้าย (สถานะ completed)
 router.post('/transactions/:id/complete', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -467,7 +472,7 @@ router.post('/transactions/:id/complete', authRequired, async (req, res) => {
   }
 });
 
-// Get payment notifications
+// GET /api/payments/notifications — แจ้งเตือนใน flow การชำระเงิน/จัดส่ง (ตาราง payment_notifications)
 router.get('/notifications', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -488,7 +493,7 @@ router.get('/notifications', authRequired, async (req, res) => {
   }
 });
 
-// Mark notification as read
+// PUT /api/payments/notifications/:id/read — ทำเครื่องหมายว่าแจ้งเตือน payment อ่านแล้ว
 router.put('/notifications/:id/read', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -506,7 +511,7 @@ router.put('/notifications/:id/read', authRequired, async (req, res) => {
   }
 });
 
-// Get user balance
+// GET /api/payments/balance — ดึงยอด balance ปัจจุบันของผู้ใช้
 router.get('/balance', authRequired, async (req, res) => {
   const pool = await getPool();
   
@@ -526,6 +531,7 @@ router.get('/balance', authRequired, async (req, res) => {
   }
 });
 
+// POST /api/payments/transactions/:id/tracking — ผู้ขายกรอก/อัปเดตเลขพัสดุ (ใช้ได้เมื่อสถานะ paid/shipped)
 router.post('/transactions/:id/tracking', authRequired, async (req, res) => {
   const pool = await getPool();
   const { trackingNumber, estimatedDelivery, shippingNote } = req.body;

@@ -6,6 +6,12 @@ import { getPool } from '../utils/db.js';
 import { authRequired } from '../middleware/auth.js';
 import { NotificationService } from '../services/notificationService.js';
 
+/**
+ * auctionRoutes
+ * - ถูก mount ที่: `/api/auctions`
+ * - หน้าที่รวม: สร้าง/ดึง/แก้ไข/ลบการประมูล + บิด + ซื้อทันที + helper สำหรับ UI/socket
+ * - หมายเหตุเรื่องลำดับ route: path แบบตายตัว (เช่น `/active`, `/my-auctions`) ต้องอยู่ก่อน `/:id` เพื่อไม่ให้ถูกดักเป็น parameter
+ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,7 +54,7 @@ function normalizeAuctionImages(auctionRow) {
   return { ...auctionRow, images };
 }
 
-// Active auctions
+// GET /api/auctions/active — ประมูลที่ยังไม่จบ (ใช้โชว์บนหน้าเว็บ/วิดเจ็ต)
 router.get('/active', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(
@@ -57,7 +63,7 @@ router.get('/active', async (req, res) => {
   res.json(rows.map(normalizeAuctionImages));
 });
 
-// Count of seller's currently active auctions (for /orders summary)
+// GET /api/auctions/my-active-count — นับจำนวนประมูลที่ยัง active ของผู้ขาย (ใช้หน้า orders/summary)
 router.get('/my-active-count', authRequired, async (req, res) => {
   const pool = await getPool();
   const userId = req.user.id;
@@ -72,7 +78,7 @@ router.get('/my-active-count', authRequired, async (req, res) => {
   res.json({ count: Number(rows?.[0]?.count || 0) });
 });
 
-// Counts for seller listings (active vs ended)
+// GET /api/auctions/my-listing-counts — นับ active vs ended ของผู้ขาย
 router.get('/my-listing-counts', authRequired, async (req, res) => {
   const pool = await getPool();
   const userId = req.user.id;
@@ -90,7 +96,7 @@ router.get('/my-listing-counts', authRequired, async (req, res) => {
   });
 });
 
-// Highest bid for auction
+// GET /api/auctions/:id/highest-bid — ราคาสูงสุดปัจจุบัน + username (sealed จะซ่อนจนกว่าจะจบ)
 router.get('/:id/highest-bid', async (req, res) => {
   const pool = await getPool();
   
@@ -119,7 +125,7 @@ router.get('/:id/highest-bid', async (req, res) => {
   res.json(rows[0]);
 });
 
-// Top 5 bidders for auction
+// GET /api/auctions/:id/top-bidders — top 5 ผู้บิด (sealed จะซ่อนจนกว่าจะจบ)
 router.get('/:id/top-bidders', async (req, res) => {
   const pool = await getPool();
   
@@ -148,14 +154,14 @@ router.get('/:id/top-bidders', async (req, res) => {
   res.json(rows);
 });
 
-// List auctions
+// GET /api/auctions — รายการประมูลทั้งหมด (เรียงตาม end_time DESC)
 router.get('/', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query('SELECT * FROM auctions ORDER BY end_time DESC');
   res.json(rows.map(normalizeAuctionImages));
 });
 
-// Get user's own auctions with winners only
+// GET /api/auctions/my-auctions — ประมูลของผู้ขายที่ “จบแล้วและมีผู้ชนะ” (รวมข้อมูล winner/bid_count)
 router.get('/my-auctions', authRequired, async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(`
@@ -188,7 +194,7 @@ router.get('/my-auctions', authRequired, async (req, res) => {
   res.json(rows.map(normalizeAuctionImages));
 });
 
-// Bidder: auctions the user has placed bids on (latest bid per auction)
+// GET /api/auctions/my-bid-history — ประวัติการบิดของผู้ใช้ (ดึง bid ล่าสุดต่อ auction)
 router.get('/my-bid-history', authRequired, async (req, res) => {
   const pool = await getPool();
   const userId = req.user.id;
@@ -251,7 +257,7 @@ router.get('/my-bid-history', authRequired, async (req, res) => {
   res.json(payload);
 });
 
-// Check if current user has any bids on an auction (used for popup/overlay)
+// GET /api/auctions/:id/has-bid — เช็คว่าผู้ใช้ปัจจุบันเคยบิดใน auction นี้หรือยัง
 router.get('/:id/has-bid', authRequired, async (req, res) => {
   const pool = await getPool();
   const auctionId = Number(req.params.id);
@@ -263,8 +269,7 @@ router.get('/:id/has-bid', authRequired, async (req, res) => {
   res.json({ hasBid: Boolean(row?.has_bid) });
 });
 
-// Finalize ended auction immediately (idempotent).
-// Used by frontend when countdown reaches 0 to trigger winner/loser notifications instantly.
+// POST /api/auctions/:id/finalize — ปิดงานประมูลทันทีเมื่อถึงเวลา (idempotent) เพื่อยิง notification/socket
 router.post('/:id/finalize', async (req, res) => {
   const pool = await getPool();
   const io = req.app.get('io');
@@ -282,7 +287,7 @@ router.post('/:id/finalize', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Get one
+// GET /api/auctions/:id — รายละเอียด auction + bids (sealed จะไม่แนบ bids ถ้ายังไม่จบ)
 router.get('/:id', async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(
@@ -315,7 +320,7 @@ router.get('/:id', async (req, res) => {
   res.json({ ...normalizeAuctionImages(auction), bids });
 });
 
-// Owner-only view of all bids (used for sealed bidding history)
+// GET /api/auctions/:id/bids/owner — ดูประวัติบิดแบบเต็มได้เฉพาะเจ้าของประมูล (ใช้กับ sealed)
 router.get('/:id/bids/owner', authRequired, async (req, res) => {
   const pool = await getPool();
   const auctionId = req.params.id;
@@ -336,7 +341,7 @@ router.get('/:id/bids/owner', authRequired, async (req, res) => {
   res.json({ auctionId, bids });
 });
 
-// Create auction
+// POST /api/auctions — สร้างประมูลใหม่ (multipart: `image` legacy หรือ `images` สูงสุด 5 ไฟล์)
 router.post(
   '/',
   authRequired,
@@ -395,7 +400,7 @@ router.post(
   }
 });
 
-// Update auction (owner or admin)
+// PUT /api/auctions/:id — อัปเดตข้อมูลประมูลแบบเดิม (owner หรือ admin) + อัปโหลดรูปเดี่ยวได้
 router.put('/:id', authRequired, upload.single('image'), async (req, res) => {
   const { title, description, end_time } = req.body;
   const image = req.file ? `/uploads/${req.file.filename}` : undefined;
@@ -410,7 +415,7 @@ router.put('/:id', authRequired, upload.single('image'), async (req, res) => {
   res.json(normalizeAuctionImages(updated[0]));
 });
 
-// Seller edit auction (only if active and no bids yet)
+// PATCH /api/auctions/:id/edit — แก้ไขประมูลฝั่งผู้ขาย (ราคา/เวลา/รูป) มีเงื่อนไขเรื่อง bids และกรณีขยายเวลาหลังจบ
 router.patch(
   '/:id/edit',
   authRequired,
@@ -544,7 +549,7 @@ router.patch(
   }
 );
 
-// Delete auction
+// DELETE /api/auctions/:id — ลบประมูล (owner หรือ admin) + ลบ bids ที่เกี่ยวข้อง
 router.delete('/:id', authRequired, async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query('SELECT * FROM auctions WHERE id=?', [req.params.id]);
@@ -556,9 +561,7 @@ router.delete('/:id', authRequired, async (req, res) => {
   res.json({ ok: true });
 });
 
-export default router;
-
-// Place a bid via REST (transactional)
+// POST /api/auctions/:id/bids — บิดผ่าน REST (transaction + หักเงินตาม incremental/sealed)
 router.post('/:id/bids', authRequired, async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -638,7 +641,7 @@ router.post('/:id/bids', authRequired, async (req, res) => {
   }
 });
 
-// Buy Now - Instant purchase at buy_now_price
+// POST /api/auctions/:id/buy-now — ซื้อทันที (จบประมูลทันที + สร้าง payment transaction/chat room + notifications)
 router.post('/:id/buy-now', authRequired, async (req, res) => {
   const pool = await getPool();
   const conn = await pool.getConnection();
@@ -845,4 +848,6 @@ router.post('/:id/buy-now', authRequired, async (req, res) => {
   }
 });
 
+// export ไว้ท้ายไฟล์เพื่อให้เห็นชัดว่า module นี้ส่ง `router` ออกไปให้ `server.js` mount ที่ `/api/auctions`
+export default router;
 

@@ -3,9 +3,14 @@ import { getPool } from '../utils/db.js';
 import { authRequired } from '../middleware/auth.js';
 import { NotificationService } from '../services/notificationService.js';
 
+/**
+ * notificationRoutes
+ * - ถูก mount ที่: `/api/notifications`
+ * - หน้าที่รวม: แจ้งเตือนในระบบ (อ่าน/นับ unread/ทำเครื่องหมายอ่านแล้ว/ลบ)
+ */
 const router = Router();
 
-// Get user notifications
+// GET /api/notifications — ดึงรายการแจ้งเตือนของผู้ใช้ (admin จะได้รับบางประเภทเพิ่ม)
 router.get('/', authRequired, async (req, res) => {
   try {
     const adminTypes = ['topup_created', 'withdrawal_created'];
@@ -21,7 +26,7 @@ router.get('/', authRequired, async (req, res) => {
   }
 });
 
-// Get unread notification count
+// GET /api/notifications/unread-count — นับจำนวนแจ้งเตือนที่ยังไม่อ่าน
 router.get('/unread-count', authRequired, async (req, res) => {
   try {
     const adminTypes = ['topup_created', 'withdrawal_created'];
@@ -36,7 +41,7 @@ router.get('/unread-count', authRequired, async (req, res) => {
   }
 });
 
-// Mark notification as read
+// PUT /api/notifications/:id/read — ทำเครื่องหมายว่าแจ้งเตือน 1 รายการ “อ่านแล้ว”
 router.put('/:id/read', authRequired, async (req, res) => {
   try {
     await NotificationService.markNotificationAsRead(req.params.id, req.user.id);
@@ -47,7 +52,7 @@ router.put('/:id/read', authRequired, async (req, res) => {
   }
 });
 
-// Mark all notifications as read
+// PUT /api/notifications/mark-all-read — ทำเครื่องหมายว่าอ่านทั้งหมดของผู้ใช้คนนี้
 router.put('/mark-all-read', authRequired, async (req, res) => {
   try {
     await NotificationService.markAllNotificationsAsRead(req.user.id);
@@ -58,7 +63,7 @@ router.put('/mark-all-read', authRequired, async (req, res) => {
   }
 });
 
-// Delete notification
+// DELETE /api/notifications/:id — ลบแจ้งเตือน (เฉพาะของ user ตัวเอง)
 router.delete('/:id', authRequired, async (req, res) => {
   const pool = await getPool();
   try {

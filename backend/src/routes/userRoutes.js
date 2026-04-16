@@ -3,8 +3,14 @@ import { authRequired } from '../middleware/auth.js';
 import { getPool } from '../utils/db.js';
 import bcrypt from 'bcryptjs';
 
+/**
+ * userRoutes
+ * - ถูก mount ที่: `/api/users`
+ * - หน้าที่รวม: endpoint สำหรับ “ผู้ใช้ที่ล็อกอินแล้ว” (ดึงข้อมูล/เปลี่ยนรหัสผ่าน)
+ */
 const router = Router();
 
+// GET /api/users/me — ดึงข้อมูลผู้ใช้ปัจจุบัน (รวม balance)
 router.get('/me', authRequired, async (req, res) => {
   const pool = await getPool();
   const [rows] = await pool.query(
@@ -15,6 +21,7 @@ router.get('/me', authRequired, async (req, res) => {
   res.json(rows[0]);
 });
 
+// POST /api/users/me/change-password — เปลี่ยนรหัสผ่าน (ต้องยืนยันรหัสผ่านปัจจุบัน)
 router.post('/me/change-password', authRequired, async (req, res) => {
   const pool = await getPool();
   const currentPassword = typeof req.body.currentPassword === 'string' ? req.body.currentPassword : '';
