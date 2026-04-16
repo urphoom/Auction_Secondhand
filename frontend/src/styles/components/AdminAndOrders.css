@@ -1,4 +1,9 @@
 /* Admin Dashboard Styles */
+/* ============================================================================
+  ใช้กับ: หน้ากลุ่ม Admin + Orders/Order Management (สไตล์ที่แชร์กัน)
+  ตัวอย่างหน้า: `frontend/src/pages/admin/*` บางหน้า, `frontend/src/pages/OrderManagement.jsx` (และ modal ที่ใช้ร่วมกัน)
+  หมายเหตุ: ถ้าแก้แล้วกระทบทั้งฝั่งแอดมินและหน้าออเดอร์ มีโอกาสมาจากไฟล์นี้
+============================================================================ */
 .admin-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

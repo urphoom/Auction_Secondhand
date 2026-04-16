@@ -1,4 +1,9 @@
 /* Auction Cards */
+/* ============================================================================
+  ใช้กับ: หน้า list/browse ประมูล (การ์ดรายการประมูล)
+  ผูกกับ: หน้าที่แสดง “กริดการ์ดประมูล” เช่น `frontend/src/pages/AuctionList.jsx`
+  รวม: .auction-grid, .auction-card และองค์ประกอบบนการ์ด
+============================================================================ */
 .auction-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -115,7 +120,7 @@
 }
 
 .auction-link:hover {
-  background: #020617;
+  background: #ffffff;
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }

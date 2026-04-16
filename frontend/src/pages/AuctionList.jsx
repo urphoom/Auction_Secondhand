@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatCurrency } from '../utils/formatCurrency.js';
 import api from '../services/api.js';
 import AuctionCard from '../components/AuctionCard.jsx';
-import { ArrowUpDown, Filter } from 'lucide-react';
+import { ArrowUpDown } from 'lucide-react';
 
 export default function AuctionList() {
   const [auctions, setAuctions] = useState([]);
@@ -10,7 +10,6 @@ export default function AuctionList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredAuctions, setFilteredAuctions] = useState([]);
   const [sortBy, setSortBy] = useState('latest');
-  const [category, setCategory] = useState('all');
 
   useEffect(() => {
     async function loadAuctions() {
@@ -53,21 +52,7 @@ export default function AuctionList() {
     });
   };
 
-  const categories = Array.from(
-    new Set(
-      auctions
-        .map((a) => a.category)
-        .filter((c) => c && typeof c === 'string')
-    )
-  );
-
   let displayAuctions = filterAuctions(filteredAuctions);
-
-  if (category !== 'all') {
-    displayAuctions = displayAuctions.filter(
-      (auction) => auction.category === category
-    );
-  }
 
   displayAuctions = [...displayAuctions].sort((a, b) => {
     const getDate = (auction) =>
@@ -176,24 +161,6 @@ export default function AuctionList() {
                     </select>
                   </div>
 
-                  <div className="auction-filter">
-                    <label className="auction-filter-label">
-                      <Filter className="w-3.5 h-3.5" />
-                      <span>หมวดหมู่</span>
-                    </label>
-                    <select
-                      className="auction-filter-select"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="all">ทั้งหมด</option>
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
               </div>
             </div>
@@ -252,7 +219,7 @@ export default function AuctionList() {
                       
                       {auction.bid_type === 'increment' && auction.minimum_increment && (
                         <div className="text-sm text-muted mb-2">
-                          เพิ่มขั้นต่ำ: {formatCurrency(auction.minimum_increment)}
+                          ราคาเสนอขั้นต่ำ: {formatCurrency(auction.minimum_increment)}
                         </div>
                       )}
                       

@@ -1,4 +1,9 @@
 /* Forms - Modern Design */
+/* ============================================================================
+  ใช้กับ: ฟอร์ม + ตารางทั่วไปหลายหน้า (Reusable UI)
+  ตัวอย่างหน้า: login/register, สร้าง/แก้ไขประมูล, profile, admin tables ฯลฯ
+  รวม: input/select/textarea, ปุ่ม, table base style
+============================================================================ */
 .form-group {
   margin-bottom: var(--space-6);
 }

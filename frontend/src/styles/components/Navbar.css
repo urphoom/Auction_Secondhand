@@ -1,4 +1,9 @@
 /* Navigation - Modern Design */
+/* ============================================================================
+  ใช้กับ: แถบเมนูบนสุด (Navbar) ทุกหน้า
+  ผูกกับ: `frontend/src/components/Navbar.jsx`
+  รวม: ลิงก์เมนู, dropdown ผู้ใช้, responsive navbar
+============================================================================ */
 .navbar {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
